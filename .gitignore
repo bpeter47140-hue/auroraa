@@ -1,0 +1,31 @@
+# Secrets and local configuration
+backups/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Java / Maven
+**/target/
+backend/data/
+*.mv.db
+*.trace.db
+**/.mvn/wrapper/maven-wrapper.jar
+
+# Node
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Python
+**/__pycache__/
+**/.venv/
+**/venv/
+*.py[cod]
+
+# IDE and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
