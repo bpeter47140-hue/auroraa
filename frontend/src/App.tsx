@@ -28,8 +28,11 @@ type Tab = 'overview' | 'tasks' | 'approvals' | 'activity' | 'businesses' | 'age
 let sessionToken: string | null = sessionStorage.getItem('aurora.session')
 let selectedWorkspaceId: number | null = Number(sessionStorage.getItem('aurora.workspace')) || null
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '')
+const apiUrl = (path: string) => `${API_BASE_URL}${path}`
+
 const api = async <T,>(path: string, options?: RequestInit): Promise<T> => {
-  const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}), ...(selectedWorkspaceId ? { 'X-Aurora-Workspace': String(selectedWorkspaceId) } : {}), ...options?.headers } })
+  const response = await fetch(apiUrl(path), { ...options, headers: { 'Content-Type': 'application/json', ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}), ...(selectedWorkspaceId ? { 'X-Aurora-Workspace': String(selectedWorkspaceId) } : {}), ...options?.headers } })
   if (!response.ok) {
     const message = await response.text()
     throw new Error(`HTTP ${response.status}: ${message || 'Request failed'}`)
@@ -193,7 +196,7 @@ function App() {
       const body = authMode === 'register'
         ? { email: authEmail, password: authPassword, displayName, workspaceName }
         : { email: authEmail, password: authPassword }
-      const response = await fetch(path, {
+      const response = await fetch(apiUrl(path), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -244,7 +247,7 @@ function App() {
     event.preventDefault()
     setResetBusy(true); setResetNotice(''); setError('')
     try {
-      const response = await fetch('/api/v1/auth/password/reset-request', {
+      const response = await fetch(apiUrl('/api/v1/auth/password/reset-request'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: authEmail }),
       })
@@ -264,7 +267,7 @@ function App() {
     if (!resetToken) return
     setResetBusy(true)
     try {
-      const response = await fetch('/api/v1/auth/password/reset', {
+      const response = await fetch(apiUrl('/api/v1/auth/password/reset'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: resetToken, newPassword: resetNewPassword }),
       })
@@ -288,7 +291,7 @@ function App() {
     if (!invitationToken) return
     setAuthBusy(true); setError(''); setInviteNotice('')
     try {
-      const response = await fetch('/api/v1/workspace/invitations/register', {
+      const response = await fetch(apiUrl('/api/v1/workspace/invitations/register'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: invitationToken, displayName, password: authPassword }),
       })
@@ -331,7 +334,7 @@ function App() {
 
   useEffect(() => {
     let active = true
-    fetch('/api/v1/auth/bootstrap')
+    fetch(apiUrl('/api/v1/auth/bootstrap'))
       .then(response => {
         if (!response.ok) throw new Error('Backend returned HTTP ' + response.status)
         return response.json()
