@@ -8,7 +8,7 @@ import java.util.List;
 @RequestMapping("/api/v1/agents")
 public class AgentCatalogController {
     @Value("${aurora.ai.api-key:}") private String apiKey;
-    @Value("${aurora.ai.model:openrouter/free}") private String model;
+    @Value("${aurora.ai.model:openai/gpt-4.1-mini}") private String model;
 
     public record AgentProfile(String id,String name,String role,String description,
         List<String> capabilities,String status,boolean modelConfigured,String model){}
@@ -18,7 +18,7 @@ public class AgentCatalogController {
         String status=configured?"READY":"MODEL_REQUIRED";
         return List.of(
             new AgentProfile("research-agent","Research Agent","Market intelligence",
-                "Researches supplied context, evaluates competitors and develops validation experiments. Live web browsing is not connected yet.",
+                "Researches supplied context, evaluates competitors and develops validation experiments. Provider web search is configured; source and citation quality still require end-to-end verification.",
                 List.of("Market research","Competitor analysis","Opportunity scoring","Validation experiments"),status,configured,model),
             new AgentProfile("strategy-agent","Strategy Agent","Business planning",
                 "Turns supplied research into business plans, measurable experiments and strategic priorities.",

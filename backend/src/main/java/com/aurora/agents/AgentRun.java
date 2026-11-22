@@ -3,6 +3,7 @@ package com.aurora.agents;
 import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.aurora.identity.TenantWorkspace;
+import com.aurora.businesses.BusinessWorkspace;
 import java.time.Instant;
 
 @Entity
@@ -13,10 +14,13 @@ public class AgentRun {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "workspace_id", foreignKey = @ForeignKey(name = "fk_agent_runs_workspace"))
     private TenantWorkspace workspace;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "business_id", foreignKey = @ForeignKey(name = "fk_agent_runs_business"))
+    private BusinessWorkspace business;
     @Column(nullable = false, length = 60) private String agentId;
     @Column(nullable = false, length = 40) private String agentName;
     @Column(nullable = false, length = 24) private String status;
-    @Column(nullable = false, length = 5000) private String input;
+    @Column(nullable = false, length = 20000) private String input;
     @Column(length = 30000) private String output;
     @Column(length = 1200) private String error;
     @Column(length = 160) private String model;
@@ -32,6 +36,8 @@ public class AgentRun {
     public void fail(String error) { this.error = error; this.status = "FAILED"; this.finishedAt = Instant.now(); }
     public Long getId() { return id; }
     public String getAgentId() { return agentId; }
+    public Long getBusinessId() { return business == null ? null : business.getId(); }
+    public String getBusinessName() { return business == null ? null : business.getName(); }
     public String getAgentName() { return agentName; }
     public String getStatus() { return status; }
     public String getInput() { return input; }
@@ -42,6 +48,14 @@ public class AgentRun {
     public Instant getFinishedAt() { return finishedAt; }
 
     @JsonIgnore
+    public BusinessWorkspace getBusiness() { return business; }
+    @JsonIgnore
     public TenantWorkspace getWorkspace() { return workspace; }
     public void assignWorkspace(TenantWorkspace workspace) { if (workspace == null) throw new IllegalArgumentException("Workspace is required."); this.workspace = workspace; }
+    public void assignBusiness(BusinessWorkspace business) {
+        if (business != null && (workspace == null || business.getWorkspace() == null
+            || !workspace.getId().equals(business.getWorkspace().getId())))
+            throw new IllegalArgumentException("Business must belong to the agent run workspace.");
+        this.business = business;
+    }
 }

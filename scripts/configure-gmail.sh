@@ -18,8 +18,23 @@ if [[ ! "$app_password" =~ ^[A-Za-z0-9]{16}$ ]]; then
   exit 1
 fi
 
-read -rp "AURORA frontend URL [http://localhost:5173]: " app_url
-app_url="${app_url:-http://localhost:5173}"
+read -rp "Public HTTPS AURORA dashboard URL (required): " app_url
+if [[ -z "$app_url" ]]; then
+  echo "A public HTTPS dashboard URL is required. Nothing was saved." >&2
+  exit 1
+fi
+if ! python3 - "$app_url" <<'PYURL'
+import sys
+from urllib.parse import urlparse
+u = urlparse(sys.argv[1])
+if (u.scheme != "https" or not u.hostname or u.hostname.lower() in {"localhost", "127.0.0.1", "::1"}
+        or u.username or u.password or u.query or u.fragment):
+    raise SystemExit(1)
+PYURL
+then
+  echo "Use a public HTTPS URL without credentials, query parameters or fragments. Nothing was saved." >&2
+  exit 1
+fi
 
 export AURORA_SETUP_MAIL_ADDRESS="$mail_address"
 export AURORA_SETUP_MAIL_PASSWORD="$app_password"

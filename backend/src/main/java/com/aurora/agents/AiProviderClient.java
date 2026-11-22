@@ -15,6 +15,7 @@ import java.util.Map;
  */
 @Component
 public class AiProviderClient {
+    static final String COMPLETIONS_PATH = "/chat/completions";
     private final RestClient client;
 
     public AiProviderClient(@Value("${aurora.ai.base-url:https://openrouter.ai/api/v1}") String baseUrl) {
@@ -29,7 +30,7 @@ public class AiProviderClient {
 
     public Map<?, ?> complete(String apiKey, Map<String, Object> payload) {
         return client.post()
-            .uri("chat/completions")
+            .uri(COMPLETIONS_PATH)
             .contentType(MediaType.APPLICATION_JSON)
             .header("Authorization", "Bearer " + apiKey)
             .body(payload)

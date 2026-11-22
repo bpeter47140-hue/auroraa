@@ -26,6 +26,9 @@ public class AuthSession {
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
+    @Column(name = "last_seen_at", nullable = false)
+    private Instant lastSeenAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -39,6 +42,7 @@ public class AuthSession {
         this.user = user;
         this.tokenHash = tokenHash.toLowerCase();
         this.expiresAt = expiresAt;
+        this.lastSeenAt = Instant.now();
     }
 
     @PrePersist
@@ -49,6 +53,8 @@ public class AuthSession {
     public String getTokenHash() { return tokenHash; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getRevokedAt() { return revokedAt; }
+    public Instant getLastSeenAt() { return lastSeenAt; }
+    public void recordActivity(Instant at) { if (at != null && at.isAfter(lastSeenAt)) lastSeenAt = at; }
     public Instant getCreatedAt() { return createdAt; }
     public boolean isUsableAt(Instant now) {
         return revokedAt == null && expiresAt.isAfter(now) && user.getStatus() == AccountStatus.ACTIVE;

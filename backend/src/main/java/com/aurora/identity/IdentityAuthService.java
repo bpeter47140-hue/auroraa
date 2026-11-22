@@ -43,26 +43,33 @@ public class IdentityAuthService {
 
     @Transactional(readOnly = true)
     public boolean isRegistrationOpen() {
-        return bootstrapEnabled && users.count() == 0;
+        return users.count() > 0 || bootstrapEnabled;
     }
 
     @Transactional
-    public AuthDtos.AuthResponse registerFirstOwner(AuthDtos.RegisterRequest request) {
+    public AuthDtos.AuthResponse register(AuthDtos.RegisterRequest request) {
         // Lock the pre-created singleton row until this transaction commits.
         // This serializes competing first-owner requests across app instances.
         bootstrapGuards.lockById(1L)
             .orElseThrow(() -> new IllegalStateException("Bootstrap guard is missing."));
-        if (!bootstrapEnabled || users.count() != 0) {
-            throw new AuthException("Initial registration is closed. Ask a workspace owner for an invitation.");
+        boolean firstAccount = users.count() == 0;
+        if (firstAccount && !bootstrapEnabled) {
+            throw new AuthException("AURORA registration is not initialized yet. Please try again later.");
         }
         String email = UserAccount.normalizeEmail(request.email());
         if (users.existsByEmail(email)) throw new AuthException("Unable to create this account.");
-        UserAccount user = users.save(new UserAccount(
+        UserAccount newOwner = new UserAccount(
             email, passwordEncoder.encode(request.password()), request.displayName().trim()
-        ));
-        TenantWorkspace workspace = workspaces.findFirstByOrderByCreatedAtAsc()
-            .filter(existing -> existing.getStatus() == WorkspaceStatus.ACTIVE)
-            .orElseGet(() -> workspaces.save(new TenantWorkspace(request.workspaceName().trim())));
+        );
+        // Only the first account on a fresh installation becomes the platform administrator.
+        // Every later public signup receives an isolated workspace OWNER role, never global access.
+        if (firstAccount) newOwner.grantPlatformAdmin();
+        UserAccount user = users.save(newOwner);
+        TenantWorkspace workspace = firstAccount
+            ? workspaces.findFirstByOrderByCreatedAtAsc()
+                .filter(existing -> existing.getStatus() == WorkspaceStatus.ACTIVE)
+                .orElseGet(() -> workspaces.save(new TenantWorkspace(request.workspaceName().trim())))
+            : workspaces.save(new TenantWorkspace(request.workspaceName().trim()));
         memberships.save(new WorkspaceMembership(workspace, user, WorkspaceRole.OWNER));
         return createSessionResponse(user);
     }
@@ -108,6 +115,14 @@ public class IdentityAuthService {
     }
 
     @Transactional
+    public void recordActivity(String rawToken) {
+        if (rawToken == null || rawToken.length() < 40 || rawToken.length() > 200) return;
+        sessions.findByTokenHash(sha256(rawToken))
+            .filter(session -> session.isUsableAt(Instant.now()))
+            .ifPresent(session -> session.recordActivity(Instant.now()));
+    }
+
+    @Transactional
     public void logout(String rawToken) {
         if (rawToken == null || rawToken.length() < 40 || rawToken.length() > 200) return;
         sessions.findByTokenHash(sha256(rawToken)).ifPresent(AuthSession::revoke);
@@ -125,10 +140,12 @@ public class IdentityAuthService {
         byte[] bytes = new byte[48];
         RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        Instant expiresAt = Instant.now().plus(SESSION_DAYS, ChronoUnit.DAYS);
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(SESSION_DAYS, ChronoUnit.DAYS);
+        user.recordLogin(now);
         sessions.save(new AuthSession(user, sha256(token), expiresAt));
         return new AuthDtos.AuthResponse(token, expiresAt,
-            new AuthDtos.UserSummary(user.getId(), user.getEmail(), user.getDisplayName()),
+            new AuthDtos.UserSummary(user.getId(), user.getEmail(), user.getDisplayName(), user.isPlatformAdmin()),
             listWorkspaces(user.getId()));
     }
 

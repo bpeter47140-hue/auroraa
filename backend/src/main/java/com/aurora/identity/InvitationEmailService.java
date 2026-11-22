@@ -8,12 +8,11 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 
 @Service
 public class InvitationEmailService {
@@ -62,6 +61,32 @@ public class InvitationEmailService {
             return true;
         } catch (Exception ex) {
             log.warn("Invitation email delivery failed for recipient domain {} ({})",
+                domainOf(email), ex.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    public boolean sendPasswordReset(String email, String token, Instant expiresAt) {
+        if (!enabled || from.isBlank()) return false;
+        String link = baseUrl + "/?reset=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
+            helper.setFrom(from);
+            helper.setTo(email);
+            helper.setSubject("Reset your AURORA password");
+            helper.setText("""
+                A password reset was requested for your AURORA account.
+
+                Set a new password using this one-time link:
+                %s
+
+                This link expires at %s (UTC). It can be used once. If you did not request this change, ignore this email; your current password remains unchanged.
+                """.formatted(link, EXPIRY_FORMAT.format(expiresAt)));
+            mailSender.send(message);
+            return true;
+        } catch (Exception ex) {
+            log.warn("Password reset email delivery failed for recipient domain {} ({})",
                 domainOf(email), ex.getClass().getSimpleName());
             return false;
         }

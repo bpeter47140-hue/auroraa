@@ -26,6 +26,12 @@ public class UserAccount {
     @Column(nullable = false, length = 16)
     private AccountStatus status = AccountStatus.ACTIVE;
 
+    @Column(name = "platform_admin", nullable = false)
+    private boolean platformAdmin = false;
+
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -62,6 +68,10 @@ public class UserAccount {
     public String getPasswordHash() { return passwordHash; }
     public String getDisplayName() { return displayName; }
     public AccountStatus getStatus() { return status; }
+    public boolean isPlatformAdmin() { return platformAdmin; }
+    public void grantPlatformAdmin() { this.platformAdmin = true; }
+    public Instant getLastLoginAt() { return lastLoginAt; }
+    public void recordLogin(Instant at) { this.lastLoginAt = at; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 

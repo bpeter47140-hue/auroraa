@@ -16,6 +16,10 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+      - name: Validate deployment shell scripts
+        run: bash -n scripts/*.sh
+      - name: Test public deployment preflight safety
+        run: bash scripts/test-public-preflight.sh
       - name: Run backend tests
         run: cd backend && ./mvnw -B test
 
@@ -85,3 +89,22 @@ jobs:
         run: cd frontend && npm run lint
       - name: Build dashboard
         run: cd frontend && npm run build
+
+  container-build:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: aurora_ci_only_not_a_secret
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
+      - name: Build production backend and dashboard images
+        run: docker compose build
+      - name: Validate Nginx configuration in the dashboard image
+        run: docker compose run --rm --no-deps dashboard nginx -t
+      - name: Validate Caddy HTTPS ingress configuration
+        run: |
+          docker run --rm \
+            -v "$PWD/infrastructure/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -e AURORA_DOMAIN=aurora.example.com \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

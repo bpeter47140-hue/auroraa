@@ -24,7 +24,7 @@ public final class AuthDtos {
     public record ChangePasswordRequest(@NotBlank @Size(max = 72) String currentPassword, @NotBlank @Size(min = 12, max = 72) String newPassword) {}
     public record WorkspaceSummary(Long id, String name, WorkspaceRole role) {}
     public record CurrentUserResponse(UserSummary user, List<WorkspaceSummary> workspaces) {}
-    public record UserSummary(Long id, String email, String displayName) {}
+    public record UserSummary(Long id, String email, String displayName, boolean platformAdmin) {}
     public record AuthResponse(String token, Instant expiresAt, UserSummary user,
                                List<WorkspaceSummary> workspaces) {}
     public record BootstrapStatus(boolean registrationOpen) {}

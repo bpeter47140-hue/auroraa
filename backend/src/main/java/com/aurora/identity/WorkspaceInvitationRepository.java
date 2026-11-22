@@ -7,4 +7,5 @@ public interface WorkspaceInvitationRepository extends JpaRepository<WorkspaceIn
  @EntityGraph(attributePaths="workspace") List<WorkspaceInvitation> findAllByWorkspace_IdOrderByCreatedAtDesc(Long workspaceId);
  @EntityGraph(attributePaths="workspace") Optional<WorkspaceInvitation> findByTokenHash(String tokenHash);
  List<WorkspaceInvitation> findAllByWorkspace_IdAndEmail(Long workspaceId, String email);
+ long countByAcceptedAtIsNullAndRevokedAtIsNullAndExpiresAtAfter(java.time.Instant now);
 }

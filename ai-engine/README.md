@@ -1,7 +1,5 @@
-# AURORA AI Engine
+# AURORA AI Engine — future component
 
-Python service for agent orchestration. This service will communicate with the Java backend over authenticated internal APIs.
+The current AURORA release executes its specialist agents inside the Java/Spring Boot backend. This directory is a placeholder for a possible future, separately deployed Python orchestration service; it is not part of the current Docker Compose deployment and is not required to run the product.
 
-Planned first agent: Research Agent.
-
-The AI engine will not have direct database write access or unrestricted shell access. It will submit proposed actions to the Java control plane, where permissions and approvals are enforced.
+If introduced later, the service must communicate through authenticated internal APIs. It must not receive direct database write access, unrestricted shell access, provider credentials that bypass the control plane, or permission to perform financial/public actions without owner approval.

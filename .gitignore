@@ -29,3 +29,9 @@ backend/data/
 .vscode/
 *.iml
 .DS_Store
+.neon
+
+# Local AI coding-agent and MCP workspace metadata
+.agents/
+.codex/
+skills-lock.json

@@ -21,7 +21,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody AuthDtos.RegisterRequest request) {
         try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(auth.registerFirstOwner(request));
+            return ResponseEntity.status(HttpStatus.CREATED).body(auth.register(request));
         } catch (IdentityAuthService.AuthException ex) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse(ex.getMessage()));
         }
@@ -42,7 +42,7 @@ public class AuthController {
         Object value = request.getAttribute("aurora.authenticatedUser");
         if (!(value instanceof UserAccount user)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         return ResponseEntity.ok(new AuthDtos.CurrentUserResponse(
-            new AuthDtos.UserSummary(user.getId(), user.getEmail(), user.getDisplayName()),
+            new AuthDtos.UserSummary(user.getId(), user.getEmail(), user.getDisplayName(), user.isPlatformAdmin()),
             auth.listWorkspaces(user.getId())
         ));
     }
@@ -56,6 +56,12 @@ public class AuthController {
         } catch (IdentityAuthService.AuthException ex) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse(ex.getMessage()));
         }
+    }
+
+    @PostMapping("/activity")
+    public ResponseEntity<Void> activity(HttpServletRequest request) {
+        auth.recordActivity(bearerToken(request));
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/logout")

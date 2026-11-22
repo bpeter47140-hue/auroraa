@@ -14,6 +14,8 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 file="backups/aurora-postgres-${stamp}.dump"
 docker compose exec -T database pg_dump -U aurora -d aurora -Fc > "$file"
 test -s "$file"
+# Confirm the archive is readable before presenting it as a completed backup.
+docker compose exec -T database pg_restore --list < "$file" > /dev/null
 sha256sum "$file" > "${file}.sha256"
 echo "Backup created: $file"
 echo "Keep this file private: it contains application and customer data."

@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -12,7 +13,7 @@ public class WorkspaceMemberController {
  private final WorkspaceMemberService service;
  private final InvitationEmailService emailService;
  public WorkspaceMemberController(WorkspaceMemberService service, InvitationEmailService emailService){this.service=service;this.emailService=emailService;}
- public record InviteRequest(@Email @NotBlank String email,@NotNull WorkspaceRole role){}
+ public record InviteRequest(@Email @NotBlank @Size(max=254) String email,@NotNull WorkspaceRole role){}
  public record RoleRequest(@NotNull WorkspaceRole role){}
  public record AcceptRequest(@NotBlank String token){}
  public record RegisterAcceptRequest(@NotBlank String token,@NotBlank String displayName,@NotBlank String password){}

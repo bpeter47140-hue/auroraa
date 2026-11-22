@@ -29,11 +29,14 @@ services:
       AURORA_AI_MODEL: ${AURORA_AI_MODEL:-openrouter/free}
       AURORA_AI_BASE_URL: ${AURORA_AI_BASE_URL:-https://openrouter.ai/api/v1}
       AURORA_AI_MONTHLY_REQUEST_LIMIT: ${AURORA_AI_MONTHLY_REQUEST_LIMIT:-100}
+      AURORA_AI_PLATFORM_MONTHLY_BUDGET_USD: ${AURORA_AI_PLATFORM_MONTHLY_BUDGET_USD:-0}
+      AURORA_AI_MAX_REQUEST_RESERVATION_USD: ${AURORA_AI_MAX_REQUEST_RESERVATION_USD:-0}
       AURORA_MAIL_ENABLED: ${AURORA_MAIL_ENABLED:-false}
+      AURORA_MAIL_HOST: ${AURORA_MAIL_HOST:-smtp.gmail.com}
+      AURORA_MAIL_PORT: ${AURORA_MAIL_PORT:-587}
       AURORA_MAIL_FROM: ${AURORA_MAIL_FROM:-}
-      AURORA_GMAIL_OAUTH_CLIENT_ID: ${AURORA_GMAIL_OAUTH_CLIENT_ID:-}
-      AURORA_GMAIL_OAUTH_CLIENT_SECRET: ${AURORA_GMAIL_OAUTH_CLIENT_SECRET:-}
-      AURORA_GMAIL_OAUTH_REFRESH_TOKEN: ${AURORA_GMAIL_OAUTH_REFRESH_TOKEN:-}
+      AURORA_MAIL_USERNAME: ${AURORA_MAIL_USERNAME:-}
+      AURORA_MAIL_PASSWORD: ${AURORA_MAIL_PASSWORD:-}
       AURORA_APP_BASE_URL: ${AURORA_APP_BASE_URL:-http://localhost:8088}
     depends_on:
       database:
@@ -54,7 +57,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      - "${AURORA_HTTP_PORT:-8088}:80"
+      # Bind only to loopback; public access goes through the optional Caddy profile.
+      - "127.0.0.1:${AURORA_HTTP_PORT:-8088}:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -69,5 +73,28 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["public"]
+    environment:
+      AURORA_DOMAIN: ${AURORA_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./infrastructure/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      dashboard:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   aurora-postgres:
+  caddy-data:
+  caddy-config:

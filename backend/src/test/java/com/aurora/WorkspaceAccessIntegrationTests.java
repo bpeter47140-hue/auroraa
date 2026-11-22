@@ -45,7 +45,7 @@ class WorkspaceAccessIntegrationTests {
 
     @Test
     void authenticatedUserCanOnlySelectAndReadTheirOwnWorkspace() throws Exception {
-        AuthDtos.AuthResponse owner = auth.registerFirstOwner(new AuthDtos.RegisterRequest(
+        AuthDtos.AuthResponse owner = auth.register(new AuthDtos.RegisterRequest(
             "workspace.owner@example.com", "a-secure-password-123", "Workspace Owner", "Alpha"
         ));
         Long alphaId = owner.workspaces().getFirst().id();
@@ -74,7 +74,7 @@ class WorkspaceAccessIntegrationTests {
 
     @Test
     void crossWorkspaceUpdatesAndDeletesAreHiddenAsNotFound() throws Exception {
-        AuthDtos.AuthResponse owner = auth.registerFirstOwner(new AuthDtos.RegisterRequest(
+        AuthDtos.AuthResponse owner = auth.register(new AuthDtos.RegisterRequest(
             "isolation.owner@example.com", "a-secure-password-123", "Isolation Owner", "Alpha"
         ));
         Long alphaId = owner.workspaces().getFirst().id();
@@ -125,7 +125,7 @@ class WorkspaceAccessIntegrationTests {
         mvc.perform(get("/api/v1/tasks"))
             .andExpect(status().isUnauthorized());
 
-        AuthDtos.AuthResponse owner = auth.registerFirstOwner(new AuthDtos.RegisterRequest(
+        AuthDtos.AuthResponse owner = auth.register(new AuthDtos.RegisterRequest(
             "revocation.owner@example.com", "a-secure-password-123", "Revocation Owner", "Revocation"
         ));
         auth.logout(owner.token());

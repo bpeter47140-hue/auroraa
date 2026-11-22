@@ -13,11 +13,11 @@ import java.util.List;
 public class AgentRunController {
     private final AgentExecutionService service;
     public AgentRunController(AgentExecutionService service) { this.service = service; }
-    public record RunRequest(@NotBlank String agentId, @NotBlank @Size(max = 5000) String input) {}
+    public record RunRequest(@NotBlank String agentId, @NotBlank @Size(max = 5000) String input, Long businessId) {}
     @GetMapping public List<AgentRun> recent() { return service.recent(); }
     @PostMapping public AgentRun execute(@Valid @RequestBody RunRequest request) {
         com.aurora.security.WorkspaceContextHolder.requireAnyRole(com.aurora.identity.WorkspaceRole.OWNER, com.aurora.identity.WorkspaceRole.ADMIN, com.aurora.identity.WorkspaceRole.MEMBER);
-        try { return service.execute(request.agentId(), request.input()); }
+        try { return service.execute(request.agentId(), request.input(), request.businessId()); }
         catch (IllegalArgumentException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage()); }
         catch (IllegalStateException ex) { throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage()); }
     }

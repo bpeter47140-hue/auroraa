@@ -34,6 +34,8 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         return "/api/v1/auth/bootstrap".equals(path)
             || "/api/v1/auth/register".equals(path)
             || "/api/v1/auth/login".equals(path)
+            || "/api/v1/auth/password/reset-request".equals(path)
+            || "/api/v1/auth/password/reset".equals(path)
             || "/api/v1/auth/logout".equals(path)
             || "/api/v1/workspace/invitations/register".equals(path)
             || "/api/v1/system/status".equals(path)

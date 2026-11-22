@@ -7,9 +7,9 @@ Date: 2026-11-22
 
 The cloud profile uses account sessions and workspace membership authorization. The legacy shared owner token is isolated behind the explicit `legacy-owner-token` profile and is not the multi-user deployment mode. First-owner bootstrap is disabled by default in the cloud profile and must be temporarily enabled by the operator during initial setup.
 
-Implemented controls include normalized unique user emails, BCrypt password hashes, hashed opaque session tokens with expiry/revocation, workspace memberships and roles, workspace-scoped business records and repository access, tenant-scoped agent context, invitation flows, and tests for role enforcement and cross-workspace isolation. The first-owner registration endpoint now locks a pre-created singleton database row inside the registration transaction; a concurrency test verifies that only one of two simultaneous first-owner registrations succeeds. PostgreSQL creates this row through Flyway V3; the local H2 profile seeds it during application startup. The test suite now includes HTTP-level checks that authenticated users cannot select another workspace and that missing or revoked sessions are rejected.
+Implemented controls include normalized unique user emails, BCrypt password hashes, hashed opaque session tokens with expiry/revocation, workspace memberships and roles, workspace-scoped business records and repository access, tenant-scoped agent context, invitation flows, and tests for role enforcement and cross-workspace isolation. The registration endpoint locks a pre-created singleton database row inside the registration transaction. On a fresh installation, the first account becomes the platform administrator; subsequent public signups each receive a new isolated workspace and OWNER membership, never platform-wide access. Concurrent registration tests verify workspace separation and that only the initial account can receive the platform-admin flag. PostgreSQL creates this row through Flyway V3; the local H2 profile seeds it during application startup. The test suite now includes HTTP-level checks that authenticated users cannot select another workspace and that missing or revoked sessions are rejected.
 
-This is not a production security certification. The first-owner bootstrap setting must still be disabled immediately after setup. Do not open public registration or invite external customers until the remaining release gates—especially deployment security, rate limiting, data migration, backup/restore, monitoring and privacy review—are completed.
+This is not a production security certification. The first-owner bootstrap setting must be disabled immediately after initial setup. Normal public signup is implemented and intentionally remains open after the platform owner exists; each signup creates a separate private workspace. Do not expose the service to external customers until the remaining release gates—especially deployment security, rate limiting, data migration, backup/restore, monitoring and privacy review—are completed.
 
 ## 2. Target tenancy model
 
@@ -30,7 +30,7 @@ A user may belong to multiple workspaces. A workspace may have multiple members.
 - Login issues a cryptographically random opaque token; store only its SHA-256 hash, with a finite expiry and revocation support.
 - Keep access tokens out of localStorage. Prefer a Secure, HttpOnly, SameSite cookie in production; if bearer headers are retained for the local prototype, keep them in memory and require HTTPS outside localhost.
 - Add login throttling, generic login errors, password length limits, account disablement and session revocation.
-- Registration is invite-only during early access. Public signup is a separately approved product decision.
+- Public signup is enabled after the initial platform owner exists. Every new account creates its own private workspace with OWNER membership; platform-admin privileges are never self-service.
 - Retain the existing owner token only as a temporary, explicitly documented break-glass operator credential. It must not become a shared customer login.
 
 ## 4. Authorization and tenant isolation
@@ -55,7 +55,7 @@ Do not add nullable tenant IDs and expose the app in the same deployment.
 5. Add non-null constraints and foreign keys.
 6. Update every repository/controller/service to scope by active workspace.
 7. Add negative tests proving another workspace cannot read, update or delete records by guessing IDs.
-8. Only then enable invite-based onboarding.
+8. Only then enable invite-based workspace onboarding and public account registration.
 
 Use versioned database migrations (Flyway or Liquibase) for production schema changes. Hibernate ddl-auto=update is acceptable only for local development; production should validate a migration-managed schema.
 
@@ -79,4 +79,4 @@ Use versioned database migrations (Flyway or Liquibase) for production schema ch
 - Gate D: security and isolation tests pass.
 - Gate E: invite-only external pilot with monitoring and backup/restore tested.
 
-Until Gate D is complete, AURORA remains private to its owner. A temporary tunnel is not production hosting.
+Public registration is implemented, but AURORA remains a private release candidate until Gate D and the remaining deployment gates are complete. A temporary tunnel is not production hosting.

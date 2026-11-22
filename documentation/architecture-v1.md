@@ -27,6 +27,6 @@ AI credentials are read only from backend environment variables. They must never
 
 ## Deployment
 
-The Docker Compose file runs PostgreSQL, the backend and an Nginx-served dashboard. The database is not published to the host. The dashboard is exposed on port 8088 for local container testing.
+The Docker Compose file runs PostgreSQL, the backend and an Nginx-served dashboard. The database is not published to the host. The dashboard is bound to `127.0.0.1:8088` for local container testing; a trusted HTTPS ingress must proxy to this loopback-only port before internet exposure.
 
 Public deployment is blocked until authentication, authorization, HTTPS, rate limiting, secret management, backups and restore procedures are added. A hosting account and deployment credentials are required for an always-on cloud installation.
