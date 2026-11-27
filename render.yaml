@@ -16,6 +16,12 @@ services:
         value: "false"
       - key: AURORA_MAIL_ENABLED
         value: "true"
+      - key: AURORA_AI_API_KEY
+        sync: false
+      - key: AURORA_AI_MODEL
+        value: openrouter/free
+      - key: AURORA_AI_BASE_URL
+        value: https://openrouter.ai/api/v1
       - key: AURORA_DB_URL
         sync: false
       - key: AURORA_DB_USERNAME
