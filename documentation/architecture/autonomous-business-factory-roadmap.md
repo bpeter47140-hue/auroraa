@@ -273,3 +273,15 @@ Finish explicit retries with spend-safe idempotency, workflow approval gates, de
 - Owner/admin can record platform insights; workspace members/viewers can read them. Negative counts, impossible reach/click/conversion relationships, future reporting dates, and invalid monetary values are rejected.
 - Campaign Studio now displays daily impressions, clicks, conversions, spend, revenue, click-through rate and return on ad spend, with manual reporting entry clearly labelled. This is not yet an automated social analytics integration.
 - Next integrations: provider-specific account authorization and publishing APIs, asset generation/storage (image/video), and automated analytics sync. Those require the user's provider credentials, platform app approvals and account permissions; no credentials are embedded in AURORA.
+
+## Creative Studio assets (2026-11-27)
+- Added workspace/project-scoped creative asset storage and metadata for images and short videos. Uploads are limited to 5 MB and accepted only for PNG, JPEG, WebP, GIF, MP4 and WebM with basic file-signature checks; SVG and arbitrary files are rejected.
+- Assets are stored outside generated source workspaces, exposed only through authenticated project-scoped endpoints, and can be previewed or deleted by workspace members with edit access.
+- Campaign Studio now includes a private asset library, notes, upload/delete controls, image/video previews and a reusable project-aware creative prompt builder.
+- Actual AI image/video generation and social account publishing remain disconnected; this release provides asset management and a prompt handoff, not a claim that media is generated or published automatically.
+
+## Creative Studio verification (2026-11-27)
+- Full backend regression suite: 83 tests passed; two additional focused Creative Studio media-signature tests passed.
+- Frontend production build passed; Oxlint reports zero warnings/errors. git diff --check and Docker Compose configuration validation passed.
+- Local Docker backend and dashboard were rebuilt and restarted. Flyway validated 26 migrations and applied V25/V26 to the existing local PostgreSQL database; schema is now V26. Backend health is healthy, dashboard HTTP 200, API system status OPERATIONAL, and the unauthenticated creative-asset endpoint correctly returns HTTP 401.
+- Creative assets are stored in the existing persistent project-workspace volume, in a separate creative-assets directory so media does not enter generated website source/builds. No cloud deploy, social publishing, or external media-provider request was made.

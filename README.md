@@ -6,7 +6,7 @@ AURORA is a multi-workspace AI business operating platform. It coordinates speci
 
 - Java 25 / Spring Boot API and React + TypeScript dashboard.
 - Persistent local H2 development database and PostgreSQL deployment profile.
-- PostgreSQL schema managed by Flyway migrations V1–V25; Hibernate validates the deployed schema.
+- PostgreSQL schema managed by Flyway migrations V1–V26; Hibernate validates the deployed schema.
 - Account registration, login, password changes, one-time password recovery links and hashed, expiring, revocable sessions.
 - OWNER, ADMIN, MEMBER and VIEWER workspace roles and one-time invitations.
 - Workspace-scoped tasks, approvals, businesses, audit events, shared memory, customer research and agent runs.

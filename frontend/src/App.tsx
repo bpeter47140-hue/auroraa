@@ -38,6 +38,7 @@ type MarketingCampaign = {id:number;projectId:number;title:string;channel:string
 type CampaignDraft = {title:string;channel:string;format:string;brief:string;content:string;callToAction:string}
 type CampaignPerformanceMetric = {id:number;reportedDate:string;impressions:number;reach:number;clicks:number;likes:number;comments:number;shares:number;conversions:number;spend:number;revenue:number;notes:string|null;recordedBy:string}
 type PerformanceDraft = {date:string;impressions:string;reach:string;clicks:string;likes:string;comments:string;shares:string;conversions:string;spend:string;revenue:string;notes:string}
+type CreativeAsset = {id:number;projectId:number;name:string;mediaType:'IMAGE'|'VIDEO';contentType:string;sizeBytes:number;notes:string|null;uploadedBy:string;createdAt:string}
 type Tab = 'overview' | 'tasks' | 'approvals' | 'activity' | 'businesses' | 'projects' | 'agents' | 'memory' | 'research' | 'members' | 'settings' | 'admin'
 
 // Keep the bearer token only for this browser tab. It survives refreshes but is
@@ -77,6 +78,11 @@ function App() {
   const [campaignBusy, setCampaignBusy] = useState<number|null>(null)
   const [campaignGenerating, setCampaignGenerating] = useState<number|null>(null)
   const [campaignEditing, setCampaignEditing] = useState<Record<number,number|null>>({})
+  const [creativeAssets,setCreativeAssets] = useState<Record<number,CreativeAsset[]>>({})
+  const [creativeAssetUrls,setCreativeAssetUrls] = useState<Record<number,string>>({})
+  const [creativeUploadBusy,setCreativeUploadBusy] = useState<number|null>(null)
+  const [creativeNotes,setCreativeNotes] = useState<Record<number,string>>({})
+  const [creativeBriefs,setCreativeBriefs] = useState<Record<number,string>>({})
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [projectGoal, setProjectGoal] = useState('')
@@ -539,7 +545,28 @@ function App() {
       catch { return [project.id, []] as const }
     }))
     setProjectReviews(Object.fromEntries(reviewPairs))
+    const creativePairs = await Promise.all(data.map(async project => {
+      try { return [project.id, await api<CreativeAsset[]>('/api/v1/projects/'+project.id+'/creative-assets')] as const }
+      catch { return [project.id, []] as const }
+    }))
+    setCreativeAssets(Object.fromEntries(creativePairs))
+
   }, [])
+
+  useEffect(() => {
+    let cancelled=false
+    const loadPreviews=async()=>{
+      for(const [projectId,items] of Object.entries(creativeAssets)) for(const asset of items){
+        if(creativeAssetUrls[asset.id])continue
+        try{
+          const response=await fetch(apiUrl('/api/v1/projects/'+projectId+'/creative-assets/'+asset.id+'/file'),{headers:{...(sessionToken?{Authorization:'Bearer '+sessionToken}:{}),...(selectedWorkspaceId?{'X-Aurora-Workspace':String(selectedWorkspaceId)}:{})}})
+          if(response.ok&&!cancelled){const url=URL.createObjectURL(await response.blob());setCreativeAssetUrls(current=>current[asset.id]?current:{...current,[asset.id]:url})}
+        }catch{/* Keep the asset card visible even if its preview is unavailable. */}
+      }
+    }
+    void loadPreviews()
+    return ()=>{cancelled=true}
+  },[creativeAssets,creativeAssetUrls])
 
   useEffect(() => {
     if (!authenticated || tab !== 'projects') return
@@ -682,6 +709,39 @@ function App() {
       await refreshProjects()
     } catch(e) { setError(e instanceof Error ? e.message : 'Could not start agent workflow') }
     finally { setWorkflowBusyProject(null) }
+  }
+
+  const uploadCreativeAsset = async (event:FormEvent,projectId:number) => {
+    event.preventDefault()
+    const form=event.currentTarget as HTMLFormElement
+    const fileInput=form.elements.namedItem('creativeFile') as HTMLInputElement|null
+    const file=fileInput?.files?.[0]
+    if(!file){setError('Choose an image or video first.');return}
+    const body=new FormData();body.append('file',file);body.append('notes',creativeNotes[projectId]||'')
+    setCreativeUploadBusy(projectId);setError('')
+    try {
+      const response=await fetch(apiUrl('/api/v1/projects/'+projectId+'/creative-assets'),{method:'POST',headers:{...(sessionToken?{Authorization:'Bearer '+sessionToken}:{}),...(selectedWorkspaceId?{'X-Aurora-Workspace':String(selectedWorkspaceId)}:{})},body})
+      if(!response.ok)throw new Error('HTTP '+response.status+': '+await response.text())
+      const asset=await response.json() as CreativeAsset
+      setCreativeAssets(current=>({...current,[projectId]:[asset,...(current[projectId]||[])]}))
+      const previewResponse=await fetch(apiUrl('/api/v1/projects/'+projectId+'/creative-assets/'+asset.id+'/file'),{headers:{...(sessionToken?{Authorization:'Bearer '+sessionToken}:{}),...(selectedWorkspaceId?{'X-Aurora-Workspace':String(selectedWorkspaceId)}:{})}})
+      if(previewResponse.ok){const url=URL.createObjectURL(await previewResponse.blob());setCreativeAssetUrls(current=>({...current,[asset.id]:url}))}
+      setCreativeNotes(current=>({...current,[projectId]:''}));form.reset()
+    } catch(e){setError(e instanceof Error?e.message:'Could not upload creative asset')}
+    finally{setCreativeUploadBusy(null)}
+  }
+  const deleteCreativeAsset = async(projectId:number,asset:CreativeAsset) => {
+    if(!window.confirm('Delete "'+asset.name+'" from this project creative library?'))return
+    try{await api<void>('/api/v1/projects/'+projectId+'/creative-assets/'+asset.id,{method:'DELETE'});setCreativeAssets(current=>({...current,[projectId]:(current[projectId]||[]).filter(item=>item.id!==asset.id)}));if(creativeAssetUrls[asset.id])URL.revokeObjectURL(creativeAssetUrls[asset.id]);setCreativeAssetUrls(current=>{const next={...current};delete next[asset.id];return next})}
+    catch(e){setError(e instanceof Error?e.message:'Could not delete asset')}
+  }
+  const creativePromptFor = (project:VentureProject) => {
+    const campaign=campaignDraftFor(project.id)
+    return 'Create a polished, original '+campaign.format.toLowerCase()+' creative for '+campaign.channel.toLowerCase()+'.\n\nBrand/project: '+project.name+'\nWhat it offers: '+project.goal+'\nCampaign objective: '+(campaign.brief||'Build awareness and encourage the target audience to take the next step.')+'\nAudience: Clearly define the likely audience from the project brief; do not invent product claims.\nVisual direction: Premium, clean, memorable, strong hierarchy, readable typography, cohesive colour palette, realistic visual assets, generous spacing.\nComposition: One clear focal point, balanced layout, platform-appropriate safe margins, no fake logos, fabricated testimonials or watermarks.\nText: Use only verified wording supplied by the project owner. Leave a clean area for final copy if exact text is not supplied.\nDeliverable: High-quality social media artwork, ready for human review before publishing.'
+  }
+  const copyCreativePrompt = async(project:VentureProject) => {
+    const prompt=creativePromptFor(project);setCreativeBriefs(current=>({...current,[project.id]:prompt}))
+    try{await navigator.clipboard.writeText(prompt)}catch{setError('Prompt prepared below. Clipboard access was blocked; copy it manually.')}
   }
 
   const campaignDraftFor = (projectId:number):CampaignDraft => campaignDrafts[projectId] || {title:'',channel:'INSTAGRAM',format:'POST',brief:'',content:'',callToAction:''}
@@ -1068,6 +1128,21 @@ function App() {
                 {(workspaceFiles[project.id]||[]).length===0&&<p className="empty-note">Create a starter workspace or generate a website to review project files here.</p>}
                 {(projectReviews[project.id]||[]).length>0&&<details className="review-history-all"><summary>Full review history ({projectReviews[project.id].length})</summary>{projectReviews[project.id].map(review=><p key={review.id}>#{review.id} · {review.artifactName} · {review.status.replaceAll('_',' ')} · {new Date(review.createdAt).toLocaleString()}{review.feedback?' · '+review.feedback:''}</p>)}</details>}
               </div>
+              <section className="creative-studio">
+                <div className="section-title"><div><h3>Creative studio</h3><p>Keep approved brand imagery and campaign media in one workspace. Uploads are private to this project.</p></div><span className="pending-chip">{(creativeAssets[project.id]||[]).length} assets</span></div>
+                {canManageProjects&&<form className="creative-upload" onSubmit={event=>void uploadCreativeAsset(event,project.id)}>
+                  <label>Upload image or short video<input name="creativeFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm" required/><small>PNG, JPEG, WebP, GIF, MP4 or WebM · maximum 5 MB per file.</small></label>
+                  <label>Asset notes (optional)<input maxLength={1000} value={creativeNotes[project.id]||''} onChange={e=>setCreativeNotes(current=>({...current,[project.id]:e.target.value}))} placeholder="e.g. Primary logo, product photo, approved brand colours"/></label>
+                  <button className="primary-button" disabled={creativeUploadBusy===project.id}>{creativeUploadBusy===project.id?'Uploading…':'Add to creative library'}</button>
+                </form>}
+                <div className="creative-asset-grid">{(creativeAssets[project.id]||[]).map(asset=><article className="creative-asset" key={asset.id}>
+                  {creativeAssetUrls[asset.id]&&asset.mediaType==='IMAGE'?<img src={creativeAssetUrls[asset.id]} alt={asset.name}/>:creativeAssetUrls[asset.id]&&asset.mediaType==='VIDEO'?<video src={creativeAssetUrls[asset.id]} controls preload="metadata"/>:<div className="creative-asset-placeholder">{asset.mediaType==='VIDEO'?'VIDEO':'IMAGE'}</div>}
+                  <div><strong>{asset.name}</strong><small>{asset.mediaType} · {(asset.sizeBytes/1024).toFixed(0)} KB · {new Date(asset.createdAt).toLocaleDateString()}</small>{asset.notes&&<p>{asset.notes}</p>}</div>
+                  {canManageProjects&&<button className="text-button" onClick={()=>void deleteCreativeAsset(project.id,asset)}>Delete asset</button>}
+                </article>)}</div>
+                {(creativeAssets[project.id]||[]).length===0&&<p className="empty-note">No creative assets yet. Add a logo, product photo or campaign video to start building this brand library.</p>}
+                <details className="creative-prompt-builder"><summary>Build a reusable image-generation prompt</summary><p>Creates a prompt from this project and the current campaign brief. Image generation is not connected yet; paste the prompt into your chosen design tool.</p><button type="button" className="secondary-button" onClick={()=>void copyCreativePrompt(project)}>Generate & copy creative prompt</button><textarea rows={8} value={creativeBriefs[project.id]||''} onChange={e=>setCreativeBriefs(current=>({...current,[project.id]:e.target.value}))} placeholder="Your project-aware creative prompt will appear here."/></details>
+              </section>
               <section className="campaign-manager">
                 <div className="section-title"><div><h3>Campaign studio</h3><p>Draft channel-specific content, submit it for owner review, then queue approved work. Aurora does not publish to social accounts yet.</p></div><span className="pending-chip">{(marketingCampaigns[project.id]||[]).length} campaigns</span></div>
                 {canManageProjects && <form className="project-form" onSubmit={event=>void createCampaign(event,project.id)}>
