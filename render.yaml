@@ -15,7 +15,7 @@ services:
       - key: AURORA_BOOTSTRAP_ENABLED
         value: "false"
       - key: AURORA_MAIL_ENABLED
-        value: "false"
+        value: "true"
       - key: AURORA_DB_URL
         sync: false
       - key: AURORA_DB_USERNAME
