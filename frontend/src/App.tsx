@@ -711,6 +711,14 @@ function App() {
     finally { setWorkflowBusyProject(null) }
   }
 
+  const exportCampaignPack = async(projectId:number,campaignId:number) => {
+    try {
+      const response=await fetch(apiUrl('/api/v1/projects/'+projectId+'/campaigns/'+campaignId+'/export.zip'),{headers:{...(sessionToken?{Authorization:'Bearer '+sessionToken}:{}),...(selectedWorkspaceId?{'X-Aurora-Workspace':String(selectedWorkspaceId)}:{})}})
+      if(!response.ok)throw new Error('Could not export campaign pack (HTTP '+response.status+')')
+      const blob=await response.blob();const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download='aurora-campaign-'+campaignId+'-pack.zip';document.body.appendChild(anchor);anchor.click();anchor.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000)
+    } catch(e){setError(e instanceof Error?e.message:'Campaign export failed')}
+  }
+
   const uploadCreativeAsset = async (event:FormEvent,projectId:number) => {
     event.preventDefault()
     const form=event.currentTarget as HTMLFormElement
@@ -1157,6 +1165,7 @@ function App() {
                 {(marketingCampaigns[project.id]||[]).map(campaign=><article className="approval-row" key={campaign.id}>
                   <div className="approval-heading"><div><span className="action-type">{campaign.channel} · {campaign.format}</span><h3>{campaign.title}</h3></div><span className={`approval-status ${campaign.status.toLowerCase()}`}>{campaign.status.replaceAll('_',' ')}</span></div>
                   <p className="campaign-copy">{campaign.content}</p>{campaign.callToAction&&<p><strong>CTA:</strong> {campaign.callToAction}</p>}
+                  <div className="approval-actions"><button className="secondary-button" onClick={()=>void exportCampaignPack(project.id,campaign.id)}>Download campaign pack · copy + project assets</button></div>
                   {campaign.feedback&&<p className="decision-note">Review feedback: {campaign.feedback}</p>}
                   {(campaign.status==='DRAFT'||campaign.status==='CHANGES_REQUESTED')&&<div className="approval-actions"><button className="secondary-button" onClick={()=>editCampaignDraft(project.id,campaign)}>Edit draft</button><button className="secondary-button" disabled={campaignBusy===campaign.id} onClick={()=>void submitCampaign(project.id,campaign.id)}>Submit for review</button></div>}
                   {campaign.status==='PENDING_REVIEW'&&(currentRole==='OWNER'||currentRole==='ADMIN')&&<div className="review-decision"><textarea rows={2} maxLength={4000} value={campaignFeedback[campaign.id]||''} onChange={e=>setCampaignFeedback(current=>({...current,[campaign.id]:e.target.value}))} placeholder="Feedback (required for changes or rejection)"/><div className="approval-actions"><button className="reject-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'REJECTED')}>Reject</button><button className="secondary-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'CHANGES_REQUESTED')}>Request changes</button><button className="approve-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'APPROVED')}>Approve</button></div></div>}

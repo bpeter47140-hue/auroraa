@@ -285,3 +285,10 @@ Finish explicit retries with spend-safe idempotency, workflow approval gates, de
 - Frontend production build passed; Oxlint reports zero warnings/errors. git diff --check and Docker Compose configuration validation passed.
 - Local Docker backend and dashboard were rebuilt and restarted. Flyway validated 26 migrations and applied V25/V26 to the existing local PostgreSQL database; schema is now V26. Backend health is healthy, dashboard HTTP 200, API system status OPERATIONAL, and the unauthenticated creative-asset endpoint correctly returns HTTP 401.
 - Creative assets are stored in the existing persistent project-workspace volume, in a separate creative-assets directory so media does not enter generated website source/builds. No cloud deploy, social publishing, or external media-provider request was made.
+
+## Campaign handoff/export pack (2026-11-27)
+- Added an authenticated, workspace/project-scoped campaign export endpoint. Members can download a ZIP containing campaign copy, CTA, current review/scheduling metadata, an asset manifest, and up to 10 project creative assets within a 20 MB asset budget.
+- Campaign Studio now exposes a one-click campaign pack download for review and handoff to a human publisher.
+- Exporting does not publish or schedule content externally. The local queue remains a planning state until platform-specific OAuth, account ownership verification, permissions, media upload, delivery receipts and retry handling are configured.
+- Current deployment configuration uses the OpenRouter-compatible chat endpoint and openrouter/free; no dedicated image model is configured. No social OAuth app credentials are configured. AI image/video generation and automatic social posting therefore remain disabled rather than silently falling back to paid or unverified providers.
+- Verification: frontend production build and lint pass; backend regression suite 85 tests, zero failures/errors/skips; git diff --check passes.
