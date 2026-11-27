@@ -18,8 +18,9 @@ public class MarketingCampaignService {
     private final MarketingCampaignRepository campaigns;
     private final AuditService audit;
     private final AgentExecutionService agents;
-    public MarketingCampaignService(VentureProjectRepository projects, MarketingCampaignRepository campaigns, AuditService audit, AgentExecutionService agents) {
-        this.projects = projects; this.campaigns = campaigns; this.audit = audit; this.agents = agents;
+    private final CampaignPerformanceRepository performance;
+    public MarketingCampaignService(VentureProjectRepository projects, MarketingCampaignRepository campaigns, AuditService audit, AgentExecutionService agents, CampaignPerformanceRepository performance) {
+        this.projects = projects; this.campaigns = campaigns; this.audit = audit; this.agents = agents; this.performance = performance;
     }
     private VentureProject project(Long id) {
         return projects.findByIdAndWorkspace_Id(id, WorkspaceContextHolder.id())
@@ -104,6 +105,24 @@ public class MarketingCampaignService {
         audit.record("MARKETING_CAMPAIGN_QUEUED", "MARKETING_CAMPAIGN", id.toString(),
             "Campaign queued in Aurora for " + request.scheduledAt() + ". No social account was contacted or post published.");
         return campaigns.save(c);
+    }
+    @Transactional(readOnly = true) public List<CampaignPerformanceMetric> performance(Long projectId, Long campaignId) {
+        WorkspaceContextHolder.requireAnyRole(WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER, WorkspaceRole.VIEWER);
+        campaign(projectId, campaignId);
+        return performance.findAllByCampaign_IdAndWorkspace_IdOrderByReportedDateDesc(campaignId, WorkspaceContextHolder.id());
+    }
+    @Transactional public CampaignPerformanceMetric recordPerformance(Long projectId, Long campaignId, java.time.LocalDate date, CampaignPerformanceMetric.PerformanceRequest request, String actor) {
+        WorkspaceContextHolder.requireAnyRole(WorkspaceRole.OWNER, WorkspaceRole.ADMIN);
+        if (date == null || date.isAfter(java.time.LocalDate.now())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a reporting date that is today or earlier.");
+        MarketingCampaign c = campaign(projectId, campaignId);
+        try {
+            CampaignPerformanceMetric metric = performance.findByCampaign_IdAndWorkspace_IdAndReportedDate(campaignId, WorkspaceContextHolder.id(), date)
+                .orElseGet(() -> new CampaignPerformanceMetric(WorkspaceContextHolder.require(), c, date, request, actor));
+            if (metric.getId() != null) metric.update(request);
+            CampaignPerformanceMetric saved = performance.save(metric);
+            audit.record("CAMPAIGN_PERFORMANCE_RECORDED", "MARKETING_CAMPAIGN", campaignId.toString(), "Recorded manually supplied performance metrics for " + date + ".");
+            return saved;
+        } catch (IllegalArgumentException e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage()); }
     }
     public record DraftRequest(String title, String channel, String format, String content, String callToAction) {}
     public record CopyRequest(String channel, String format, String brief) {}

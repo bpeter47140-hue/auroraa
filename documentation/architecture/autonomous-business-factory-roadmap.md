@@ -266,3 +266,10 @@ Finish explicit retries with spend-safe idempotency, workflow approval gates, de
 - **Core local Business Factory workflow:** implemented through planning, code generation approval, isolated build/preview, QA/security/browser reports, project artifacts and campaign draft/review queue.
 - **Still prototype-level:** AI provider research citations need live validation; workflows need multi-instance-safe active-step recovery and provider idempotency; browser QA has limitations; preview runner uses Docker socket privileges; user-facing image/video generation and actual social publishing are not connected; analytics and production deploy approval pipeline are incomplete.
 - **Release blocker:** verify the cloud backend and cloud migration/config state; complete secrets/credentials setup, independent budget caps, backup restore drill, tenant/security review and abuse/privacy controls before public onboarding.
+
+
+## Campaign analytics foundation (2026-11-27)
+- Added V25 `campaign_performance_metrics`, scoped to workspace and campaign, with one upsertable daily report per campaign.
+- Owner/admin can record platform insights; workspace members/viewers can read them. Negative counts, impossible reach/click/conversion relationships, future reporting dates, and invalid monetary values are rejected.
+- Campaign Studio now displays daily impressions, clicks, conversions, spend, revenue, click-through rate and return on ad spend, with manual reporting entry clearly labelled. This is not yet an automated social analytics integration.
+- Next integrations: provider-specific account authorization and publishing APIs, asset generation/storage (image/video), and automated analytics sync. Those require the user's provider credentials, platform app approvals and account permissions; no credentials are embedded in AURORA.

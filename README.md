@@ -6,7 +6,7 @@ AURORA is a multi-workspace AI business operating platform. It coordinates speci
 
 - Java 25 / Spring Boot API and React + TypeScript dashboard.
 - Persistent local H2 development database and PostgreSQL deployment profile.
-- PostgreSQL schema managed by Flyway migrations V1–V24; Hibernate validates the deployed schema.
+- PostgreSQL schema managed by Flyway migrations V1–V25; Hibernate validates the deployed schema.
 - Account registration, login, password changes, one-time password recovery links and hashed, expiring, revocable sessions.
 - OWNER, ADMIN, MEMBER and VIEWER workspace roles and one-time invitations.
 - Workspace-scoped tasks, approvals, businesses, audit events, shared memory, customer research and agent runs.
@@ -17,6 +17,7 @@ AURORA is a multi-workspace AI business operating platform. It coordinates speci
 - Website generation through a restricted React/TypeScript developer agent, owner/admin code-generation gate, disposable network-isolated preview builds, source QA, security review and browser QA reports/screenshots.
 - Persistent per-workspace monthly member AI request allowance (default 100), provider token/cost ledger, per-business usage attribution and dashboard display; workspace owners and administrators are exempt from the application allowance, but provider charges still apply.
 - Optional atomic platform/per-business monetary budget reservations, unknown-cost holds, owner/admin reconciliation with evidence, and persistent in-app 80%/90%/100% business budget alerts with acknowledgement. Monetary limits remain disabled until a defensible maximum per-request reservation is configured.
+- Workspace-scoped marketing campaigns with AI copy drafts, owner/admin review, scheduling queue, and daily performance reports (impressions, reach, clicks, engagement counts, conversions, spend, revenue, CTR and ROAS). Performance figures are currently entered manually from platform analytics; direct social publishing and automatic analytics sync are not yet connected.
 - Shared AI provider client with 5-second connect timeout, 45-second response timeout, and agent-specific output budgets (up to 4,200 tokens for research and 1,800 for other agents).
 - Nginx reverse proxy with authentication rate limits, security headers and Content Security Policy.
 - PostgreSQL backup/restore scripts and setup/start/status/stop helpers.

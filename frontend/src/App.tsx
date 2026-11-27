@@ -36,6 +36,8 @@ type ProjectQualityResult = {agentId:string;agentRunId:number;reportArtifactId:n
 type BrowserQAResult = {status:string;url:string;issues:{severity:string;type:string;message?:string;href?:string;status?:number;count?:number}[];checks:{name:string;passed?:boolean;count?:number;buttons?:number;forms?:number;fields?:number;scrollWidth?:number;innerWidth?:number}[];screenshots:{desktop?:{data:string};mobile?:{data:string}}}
 type MarketingCampaign = {id:number;projectId:number;title:string;channel:string;format:string;content:string;callToAction:string|null;status:string;createdBy:string;reviewedBy:string|null;feedback:string|null;scheduledAt:string|null;approvedAt:string|null;createdAt:string;updatedAt:string}
 type CampaignDraft = {title:string;channel:string;format:string;brief:string;content:string;callToAction:string}
+type CampaignPerformanceMetric = {id:number;reportedDate:string;impressions:number;reach:number;clicks:number;likes:number;comments:number;shares:number;conversions:number;spend:number;revenue:number;notes:string|null;recordedBy:string}
+type PerformanceDraft = {date:string;impressions:string;reach:string;clicks:string;likes:string;comments:string;shares:string;conversions:string;spend:string;revenue:string;notes:string}
 type Tab = 'overview' | 'tasks' | 'approvals' | 'activity' | 'businesses' | 'projects' | 'agents' | 'memory' | 'research' | 'members' | 'settings' | 'admin'
 
 // Keep the bearer token only for this browser tab. It survives refreshes but is
@@ -66,6 +68,9 @@ function App() {
   const [projects, setProjects] = useState<VentureProject[]>([])
   const [projectWorkflows, setProjectWorkflows] = useState<Record<number,ProjectWorkflow[]>>({})
   const [marketingCampaigns, setMarketingCampaigns] = useState<Record<number,MarketingCampaign[]>>({})
+  const [campaignPerformance, setCampaignPerformance] = useState<Record<number,CampaignPerformanceMetric[]>>({})
+  const [performanceDrafts, setPerformanceDrafts] = useState<Record<number,PerformanceDraft>>({})
+  const [performanceBusy, setPerformanceBusy] = useState<number|null>(null)
   const [campaignDrafts, setCampaignDrafts] = useState<Record<number,CampaignDraft>>({})
   const [campaignScheduleDrafts, setCampaignScheduleDrafts] = useState<Record<number,string>>({})
   const [campaignFeedback, setCampaignFeedback] = useState<Record<number,string>>({})
@@ -510,6 +515,11 @@ function App() {
       catch { return [project.id, []] as const }
     }))
     setMarketingCampaigns(Object.fromEntries(campaignPairs))
+    const metricPairs = await Promise.all(campaignPairs.flatMap(([,campaigns]) => campaigns.map(async campaign => {
+      try { return [campaign.id, await api<CampaignPerformanceMetric[]>(`/api/v1/projects/${campaign.projectId}/campaigns/${campaign.id}/performance`)] as const }
+      catch { return [campaign.id, []] as const }
+    })))
+    setCampaignPerformance(Object.fromEntries(metricPairs))
     const workspaces = await Promise.all(data.map(async project => {
       try {
         const artifacts = await api<ProjectArtifact[]>(`/api/v1/projects/${project.id}/workspace/artifacts`)
@@ -675,6 +685,19 @@ function App() {
   }
 
   const campaignDraftFor = (projectId:number):CampaignDraft => campaignDrafts[projectId] || {title:'',channel:'INSTAGRAM',format:'POST',brief:'',content:'',callToAction:''}
+  const performanceDraftFor = (campaignId:number):PerformanceDraft => performanceDrafts[campaignId] || {date:new Date().toISOString().slice(0,10),impressions:'0',reach:'0',clicks:'0',likes:'0',comments:'0',shares:'0',conversions:'0',spend:'0.00',revenue:'0.00',notes:''}
+  const updatePerformanceDraft = (campaignId:number,patch:Partial<PerformanceDraft>) => setPerformanceDrafts(current=>({...current,[campaignId]:{...performanceDraftFor(campaignId),...patch}}))
+  const recordCampaignPerformance = async (event:FormEvent,projectId:number,campaignId:number) => {
+    event.preventDefault(); const d=performanceDraftFor(campaignId)
+    setPerformanceBusy(campaignId); setError('')
+    try {
+      const payload={impressions:Number(d.impressions),reach:Number(d.reach),clicks:Number(d.clicks),likes:Number(d.likes),comments:Number(d.comments),shares:Number(d.shares),conversions:Number(d.conversions),spend:d.spend,revenue:d.revenue,notes:d.notes}
+      await api<CampaignPerformanceMetric>(`/api/v1/projects/${projectId}/campaigns/${campaignId}/performance/${d.date}`,{method:'PUT',body:JSON.stringify(payload)})
+      const reports=await api<CampaignPerformanceMetric[]>(`/api/v1/projects/${projectId}/campaigns/${campaignId}/performance`)
+      setCampaignPerformance(current=>({...current,[campaignId]:reports}))
+    } catch(e) { setError(e instanceof Error?e.message:'Could not record campaign performance') }
+    finally { setPerformanceBusy(null) }
+  }
   const updateCampaignDraft = (projectId:number, patch:Partial<CampaignDraft>) => setCampaignDrafts(current=>{
     const existing=current[projectId]??{title:'',channel:'INSTAGRAM',format:'POST',brief:'',content:'',callToAction:''}
     return {...current,[projectId]:{...existing,...patch}}
@@ -1064,6 +1087,11 @@ function App() {
                   {campaign.status==='PENDING_REVIEW'&&(currentRole==='OWNER'||currentRole==='ADMIN')&&<div className="review-decision"><textarea rows={2} maxLength={4000} value={campaignFeedback[campaign.id]||''} onChange={e=>setCampaignFeedback(current=>({...current,[campaign.id]:e.target.value}))} placeholder="Feedback (required for changes or rejection)"/><div className="approval-actions"><button className="reject-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'REJECTED')}>Reject</button><button className="secondary-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'CHANGES_REQUESTED')}>Request changes</button><button className="approve-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'APPROVED')}>Approve</button></div></div>}
                   {campaign.status==='APPROVED'&&(currentRole==='OWNER'||currentRole==='ADMIN')&&<div className="project-workflow-controls"><label>Queue date & time<input type="datetime-local" value={campaignScheduleDrafts[campaign.id]||''} onChange={e=>setCampaignScheduleDrafts(current=>({...current,[campaign.id]:e.target.value}))}/></label><button className="primary-button" disabled={campaignBusy===campaign.id} onClick={()=>void scheduleCampaign(project.id,campaign.id)}>Queue in Aurora</button></div>}
                   {campaign.status==='SCHEDULED'&&<small>Queued for {campaign.scheduledAt?new Date(campaign.scheduledAt).toLocaleString():''}. This is an Aurora planning queue only; no social post has been sent.</small>}
+                  <details className="campaign-performance"><summary>Performance & results · {(campaignPerformance[campaign.id]||[]).length} reports</summary>
+                    {(campaignPerformance[campaign.id]||[]).map(metric=><div className="performance-report" key={metric.id}><strong>{new Date(metric.reportedDate+'T00:00:00').toLocaleDateString()}</strong><span>{metric.impressions.toLocaleString()} impressions</span><span>{metric.clicks.toLocaleString()} clicks</span><span>{metric.conversions.toLocaleString()} conversions</span><span>Spend {Number(metric.spend).toFixed(2)}</span><span>Revenue {Number(metric.revenue).toFixed(2)}</span><span>CTR {metric.impressions?((metric.clicks/metric.impressions)*100).toFixed(2):'0.00'}%</span><span>ROAS {Number(metric.spend)>0?(Number(metric.revenue)/Number(metric.spend)).toFixed(2)+'×':'—'}</span>{metric.notes&&<small>{metric.notes}</small>}</div>)}
+                    {(currentRole==='OWNER'||currentRole==='ADMIN')&&<form className="campaign-performance-form" onSubmit={event=>void recordCampaignPerformance(event,project.id,campaign.id)}><strong>Enter platform insights manually</strong><label>Reporting date<input type="date" value={performanceDraftFor(campaign.id).date} max={new Date().toISOString().slice(0,10)} onChange={e=>updatePerformanceDraft(campaign.id,{date:e.target.value})} required/></label><div className="performance-fields">{(['impressions','reach','clicks','likes','comments','shares','conversions'] as const).map(field=><label key={field}>{field}<input type="number" min="0" step="1" value={performanceDraftFor(campaign.id)[field]} onChange={e=>updatePerformanceDraft(campaign.id,{[field]:e.target.value})} required/></label>)}</div><div className="performance-fields"><label>Spend (USD)<input type="number" min="0" step="0.01" value={performanceDraftFor(campaign.id).spend} onChange={e=>updatePerformanceDraft(campaign.id,{spend:e.target.value})} required/></label><label>Revenue (USD)<input type="number" min="0" step="0.01" value={performanceDraftFor(campaign.id).revenue} onChange={e=>updatePerformanceDraft(campaign.id,{revenue:e.target.value})} required/></label></div><label>Notes<input maxLength={1000} value={performanceDraftFor(campaign.id).notes} onChange={e=>updatePerformanceDraft(campaign.id,{notes:e.target.value})} placeholder="Source or context for these figures"/></label><button className="secondary-button" disabled={performanceBusy===campaign.id}>{performanceBusy===campaign.id?'Saving…':'Save performance report'}</button></form>}
+                    <small>Metrics are manually entered from platform analytics; AURORA does not yet fetch social statistics automatically. ROAS is revenue divided by ad spend.</small>
+                  </details>
                   <small>Created {new Date(campaign.createdAt).toLocaleString()} · {campaign.createdBy}</small>
                 </article>)}
                 {(marketingCampaigns[project.id]||[]).length===0&&<p className="empty-note">No campaigns yet. Start a Marketing plan workflow for ideas, then save approved copy here.</p>}

@@ -277,3 +277,16 @@ body { font-size: 14px; }
 .workflow-step .workflow-usage{color:#9ebca7;font-family:'DM Mono',monospace;font-size:9px}
 
 .browser-qa-shots{display:grid;gap:10px}.browser-qa-shots img{max-width:100%;border:1px solid #43554a;border-radius:8px;background:#fff}.browser-qa-shots h4{margin:8px 0 0;font-size:13px}
+
+
+.campaign-performance{margin:14px 0;padding:12px 14px;border:1px solid var(--border,#2b3442);border-radius:12px;background:rgba(255,255,255,.018)}
+.campaign-performance>summary{cursor:pointer;font-weight:650;color:var(--text,#e8edf5)}
+.performance-report{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border,#2b3442);font-size:12px;color:var(--muted,#a0aaba)}
+.performance-report strong{color:var(--text,#e8edf5)}
+.performance-report small{flex-basis:100%}
+.campaign-performance-form{display:grid;gap:12px;margin-top:14px;padding:14px;border:1px solid var(--border,#2b3442);border-radius:10px}
+.campaign-performance-form>strong{font-size:13px}
+.campaign-performance-form label{display:grid;gap:6px;font-size:12px;color:var(--muted,#a0aaba)}
+.campaign-performance-form input{min-width:0;width:100%;box-sizing:border-box}
+.performance-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+@media(max-width:640px){.performance-report{gap:6px 10px}.campaign-performance-form{padding:10px}}

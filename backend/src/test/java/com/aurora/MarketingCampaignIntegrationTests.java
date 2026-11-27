@@ -22,7 +22,7 @@ class MarketingCampaignIntegrationTests {
     @Autowired IdentityAuthService auth;
 
     @Test
-    void ownerCanDraftReviewApproveAndQueueCampaignWithoutPublishing() throws Exception {
+    void ownerCanDraftReviewApproveQueueAndRecordPerformanceWithoutPublishing() throws Exception {
         AuthDtos.AuthResponse owner = auth.register(new AuthDtos.RegisterRequest(
             "campaign.owner@example.com", "a-secure-password-123", "Campaign Owner", "Campaign workspace"));
         String token = owner.token();
@@ -57,5 +57,18 @@ class MarketingCampaignIntegrationTests {
         mvc.perform(get("/api/v1/projects/{projectId}/campaigns", projectId)
             .header("Authorization", "Bearer " + token).header("X-Aurora-Workspace", workspaceId))
             .andExpect(status().isOk()).andExpect(jsonPath("$[0].status", is("SCHEDULED")));
+        String metrics = "{\"impressions\":1200,\"reach\":900,\"clicks\":80,\"likes\":45,\"comments\":6,\"shares\":9,\"conversions\":12,\"spend\":\"15.50\",\"revenue\":\"72.00\",\"notes\":\"Manually entered from platform insights\"}";
+        String reportDate = java.time.LocalDate.now().minusDays(1).toString();
+        mvc.perform(put("/api/v1/projects/{projectId}/campaigns/{campaignId}/performance/{date}", projectId, campaignId, reportDate)
+            .header("Authorization", "Bearer " + token).header("X-Aurora-Workspace", workspaceId)
+            .contentType("application/json").content(metrics))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.impressions", is(1200))).andExpect(jsonPath("$.conversions", is(12)));
+        mvc.perform(get("/api/v1/projects/{projectId}/campaigns/{campaignId}/performance", projectId, campaignId)
+            .header("Authorization", "Bearer " + token).header("X-Aurora-Workspace", workspaceId))
+            .andExpect(status().isOk()).andExpect(jsonPath("$[0].revenue", is(72.0)));
+        mvc.perform(put("/api/v1/projects/{projectId}/campaigns/{campaignId}/performance/{date}", projectId, campaignId, reportDate)
+            .header("Authorization", "Bearer " + token).header("X-Aurora-Workspace", workspaceId)
+            .contentType("application/json").content(metrics.replace("900", "1500")))
+            .andExpect(status().isBadRequest());
     }
 }
