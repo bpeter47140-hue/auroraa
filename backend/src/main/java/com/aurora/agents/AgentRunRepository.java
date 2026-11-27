@@ -5,4 +5,5 @@ import java.util.List;
 
 public interface AgentRunRepository extends JpaRepository<AgentRun, Long> {
     List<AgentRun> findTop50ByWorkspace_IdOrderByStartedAtDesc(Long workspaceId);
+    java.util.Optional<AgentRun> findByIdAndWorkspace_Id(Long id, Long workspaceId);
 }

@@ -17,6 +17,76 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  preview-builder:
+    image: aurora-preview-builder:1
+    build:
+      context: ./infrastructure/preview-runner
+      dockerfile: builder.Dockerfile
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
+  preview-runner:
+    build:
+      context: ./infrastructure/preview-runner
+      dockerfile: Dockerfile
+    environment:
+      PREVIEW_RUNNER_TOKEN: ${AURORA_PREVIEW_RUNNER_TOKEN:?Set AURORA_PREVIEW_RUNNER_TOKEN in .env}
+      PREVIEW_DATA_PATH: /app/data/project-workspaces
+      PREVIEW_BUILDER_IMAGE: aurora-preview-builder:1
+    volumes:
+      - aurora-project-workspaces:/app/data/project-workspaces
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      # Match the host Docker socket group: stat -c %g /var/run/docker.sock
+      - "${DOCKER_GID:-947}"
+    networks:
+      - preview-internal
+    depends_on:
+      preview-builder:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8090/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.50
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  browser-qa:
+    build: ./infrastructure/browser-qa
+    environment:
+      BROWSER_QA_TOKEN: ${AURORA_BROWSER_QA_TOKEN:?Set AURORA_BROWSER_QA_TOKEN in .env}
+    networks:
+      - qa-internal
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid
+    mem_limit: 1200m
+    cpus: 1.25
+    pids_limit: 256
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8091/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+
   backend:
     build: ./backend
     environment:
@@ -25,6 +95,7 @@ services:
       AURORA_DB_USERNAME: aurora
       AURORA_DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       AURORA_BOOTSTRAP_ENABLED: ${AURORA_BOOTSTRAP_ENABLED:-false}
+      AURORA_ALLOWED_ORIGINS: ${AURORA_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8088,https://auroraa-ggia.netlify.app}
       AURORA_AI_API_KEY: ${AURORA_AI_API_KEY:-}
       AURORA_AI_MODEL: ${AURORA_AI_MODEL:-openrouter/free}
       AURORA_AI_BASE_URL: ${AURORA_AI_BASE_URL:-https://openrouter.ai/api/v1}
@@ -38,8 +109,24 @@ services:
       AURORA_MAIL_USERNAME: ${AURORA_MAIL_USERNAME:-}
       AURORA_MAIL_PASSWORD: ${AURORA_MAIL_PASSWORD:-}
       AURORA_APP_BASE_URL: ${AURORA_APP_BASE_URL:-http://localhost:8088}
+      AURORA_PROJECTS_STORAGE_PATH: /app/data/project-workspaces
+      AURORA_PREVIEW_RUNNER_URL: http://preview-runner:8090
+      AURORA_PREVIEW_RUNNER_TOKEN: ${AURORA_PREVIEW_RUNNER_TOKEN:?Set AURORA_PREVIEW_RUNNER_TOKEN in .env}
+      AURORA_PREVIEW_SIGNING_SECRET: ${AURORA_PREVIEW_SIGNING_SECRET:?Set AURORA_PREVIEW_SIGNING_SECRET in .env}
+      AURORA_BROWSER_QA_URL: http://browser-qa:8091
+      AURORA_BROWSER_QA_TOKEN: ${AURORA_BROWSER_QA_TOKEN:?Set AURORA_BROWSER_QA_TOKEN in .env}
+    volumes:
+      - aurora-project-workspaces:/app/data/project-workspaces
+    networks:
+      - default
+      - preview-internal
+      - qa-internal
     depends_on:
       database:
+        condition: service_healthy
+      preview-runner:
+        condition: service_healthy
+      browser-qa:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health || exit 1"]
@@ -57,7 +144,6 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      # Bind only to loopback; public access goes through the optional Caddy profile.
       - "127.0.0.1:${AURORA_HTTP_PORT:-8088}:80"
     depends_on:
       backend:
@@ -94,7 +180,14 @@ services:
     security_opt:
       - no-new-privileges:true
 
+networks:
+  preview-internal:
+    internal: true
+  qa-internal:
+    internal: true
+
 volumes:
   aurora-postgres:
+  aurora-project-workspaces:
   caddy-data:
   caddy-config:

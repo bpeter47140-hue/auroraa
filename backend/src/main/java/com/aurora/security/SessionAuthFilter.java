@@ -28,6 +28,11 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 
     public SessionAuthFilter(IdentityAuthService auth, WorkspaceMembershipRepository memberships) { this.auth = auth; this.memberships = memberships; }
 
+    private static boolean isSignedPreviewRequest(HttpServletRequest request) {
+        return "GET".equalsIgnoreCase(request.getMethod())
+            && request.getRequestURI().matches("^/api/v1/projects/[1-9][0-9]*/workspace/preview/[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+/.+$");
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
@@ -40,7 +45,8 @@ public class SessionAuthFilter extends OncePerRequestFilter {
             || "/api/v1/workspace/invitations/register".equals(path)
             || "/api/v1/system/status".equals(path)
             || "/actuator/health".equals(path)
-            || path.startsWith("/actuator/health/");
+            || path.startsWith("/actuator/health/")
+            || isSignedPreviewRequest(request);
     }
 
     @Override

@@ -21,7 +21,22 @@ type WorkspaceSummary = { id:number; name:string; role:string }
 type CurrentUser = { user:{id:number;email:string;displayName:string;platformAdmin:boolean}; workspaces:WorkspaceSummary[] }
 type Invitation = { id:number; email:string; role:string; createdAt:string; expiresAt:string; status:string }
 type AdminAccess = { registeredAccounts:number; activeAccounts:number; disabledAccounts:number; accountsEverLoggedIn:number; pendingInvitations:number; onlineUsers:number; activeSessions:number; sessionsStartedLast30Days:number; sessions:{id:number;email:string;displayName:string;createdAt:string;lastSeenAt:string;expiresAt:string;online:boolean}[]; generatedAt:string; onlineWindowMinutes:number }
-type Tab = 'overview' | 'tasks' | 'approvals' | 'activity' | 'businesses' | 'agents' | 'memory' | 'research' | 'members' | 'settings' | 'admin'
+type VentureProject = { id:number; name:string; goal:string; projectType:string; status:string; createdAt:string; updatedAt:string }
+type WorkflowStep = { id:number; stepOrder:number; dependsOnStepOrders:number[]; agentId:string; title:string; status:string; approvalRequired:boolean; approvalStatus:string|null; approvalDecidedAt:string|null; output:string|null; error:string|null; agentRunId:number|null; previousAgentRunId:number|null; retryCount:number; usageStatus:string|null; promptTokens:number|null; completionTokens:number|null; totalTokens:number|null; providerCostUsd:number|string|null; createdAt:string; startedAt:string|null; finishedAt:string|null }
+type ProjectWorkflow = { run:{id:number; projectId:number; projectName:string; workflowType:string; status:string; createdAt:string; startedAt:string|null; finishedAt:string|null; error:string|null}; steps:WorkflowStep[] }
+type WorkspaceFile = {path:string;content:string;sizeBytes:number}
+type ProjectArtifact = {id:number;projectId:number;artifactType:string;name:string;relativePath:string;description:string;sizeBytes:number;createdAt:string}
+type ProjectGeneration = {agentRunId:number;filesWritten:number;files:WorkspaceFile[]}
+type PreviewBuild = {status:string;logs:string;builtAt:string}
+type PreviewAccess = {url:string;expiresAt:string}
+type ProjectReview = {id:number;projectId:number;artifactId:number;artifactName:string;artifactPath:string;artifactSha256:string;artifactVersionId:number|null;artifactVersionNumber:number|null;status:string;requestedBy:string;reviewedBy:string|null;feedback:string|null;createdAt:string;reviewedAt:string|null}
+type ArtifactVersion = {id:number;artifactId:number;versionNumber:number;sha256:string;createdBy:string;createdAt:string}
+type ArtifactVersionDetail = ArtifactVersion & {content:string}
+type ProjectQualityResult = {agentId:string;agentRunId:number;reportArtifactId:number|null;status:string;report:string;notice:string}
+type BrowserQAResult = {status:string;url:string;issues:{severity:string;type:string;message?:string;href?:string;status?:number;count?:number}[];checks:{name:string;passed?:boolean;count?:number;buttons?:number;forms?:number;fields?:number;scrollWidth?:number;innerWidth?:number}[];screenshots:{desktop?:{data:string};mobile?:{data:string}}}
+type MarketingCampaign = {id:number;projectId:number;title:string;channel:string;format:string;content:string;callToAction:string|null;status:string;createdBy:string;reviewedBy:string|null;feedback:string|null;scheduledAt:string|null;approvedAt:string|null;createdAt:string;updatedAt:string}
+type CampaignDraft = {title:string;channel:string;format:string;brief:string;content:string;callToAction:string}
+type Tab = 'overview' | 'tasks' | 'approvals' | 'activity' | 'businesses' | 'projects' | 'agents' | 'memory' | 'research' | 'members' | 'settings' | 'admin'
 
 // Keep the bearer token only for this browser tab. It survives refreshes but is
 // cleared when the tab/session ends; it is never written to localStorage.
@@ -48,6 +63,39 @@ function App() {
   const [approvals, setApprovals] = useState<Approval[]>([])
   const [activity, setActivity] = useState<AuditEvent[]>([])
   const [businesses, setBusinesses] = useState<Business[]>([])
+  const [projects, setProjects] = useState<VentureProject[]>([])
+  const [projectWorkflows, setProjectWorkflows] = useState<Record<number,ProjectWorkflow[]>>({})
+  const [marketingCampaigns, setMarketingCampaigns] = useState<Record<number,MarketingCampaign[]>>({})
+  const [campaignDrafts, setCampaignDrafts] = useState<Record<number,CampaignDraft>>({})
+  const [campaignScheduleDrafts, setCampaignScheduleDrafts] = useState<Record<number,string>>({})
+  const [campaignFeedback, setCampaignFeedback] = useState<Record<number,string>>({})
+  const [campaignBusy, setCampaignBusy] = useState<number|null>(null)
+  const [campaignGenerating, setCampaignGenerating] = useState<number|null>(null)
+  const [campaignEditing, setCampaignEditing] = useState<Record<number,number|null>>({})
+  const [showProjectForm, setShowProjectForm] = useState(false)
+  const [projectName, setProjectName] = useState('')
+  const [projectGoal, setProjectGoal] = useState('')
+  const [projectType, setProjectType] = useState('WEBSITE')
+  const [projectBusy, setProjectBusy] = useState(false)
+  const [workflowBusyProject, setWorkflowBusyProject] = useState<number|null>(null)
+  const [workflowTemplate, setWorkflowTemplate] = useState<Record<number,string>>({})
+  const [workspaceFiles, setWorkspaceFiles] = useState<Record<number,WorkspaceFile[]>>({})
+  const [sourceDrafts,setSourceDrafts] = useState<Record<string,string>>({})
+  const [sourceBusy,setSourceBusy] = useState<string|null>(null)
+  const [sourceVersions,setSourceVersions] = useState<Record<number,ArtifactVersion[]>>({})
+  const [sourceVersionContent,setSourceVersionContent] = useState<Record<number,ArtifactVersionDetail>>({})
+  const [qualityBusy,setQualityBusy] = useState<number|null>(null)
+  const [qualityResults,setQualityResults] = useState<Record<number,ProjectQualityResult>>({})
+  const [browserQAResults,setBrowserQAResults]=useState<Record<number,BrowserQAResult>>({})
+  const [projectReviews, setProjectReviews] = useState<Record<number,ProjectReview[]>>({})
+  const [projectArtifacts, setProjectArtifacts] = useState<Record<number,ProjectArtifact[]>>({})
+  const [reviewFeedback, setReviewFeedback] = useState<Record<number,string>>({})
+  const [reviewBusy, setReviewBusy] = useState<number|null>(null)
+  const [workspaceBusy, setWorkspaceBusy] = useState<number|null>(null)
+  const [previewBusyProject, setPreviewBusyProject] = useState<number|null>(null)
+  const [previewBuilds, setPreviewBuilds] = useState<Record<number,PreviewBuild>>({})
+  const [previewUrls, setPreviewUrls] = useState<Record<number,string>>({})
+  const [previewModes, setPreviewModes] = useState<Record<number,'desktop'|'mobile'>>({})
   const [businessBudgets, setBusinessBudgets] = useState<Record<number, BusinessBudget>>({})
   const [budgetDrafts, setBudgetDrafts] = useState<Record<number, string>>({})
   const [budgetBusy, setBudgetBusy] = useState<number | null>(null)
@@ -201,8 +249,20 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error || `Authentication failed (HTTP ${response.status})`)
+      const responseText = await response.text()
+      let result: { error?: string; token?: string; workspaces?: WorkspaceSummary[] }
+      try {
+        result = responseText ? JSON.parse(responseText) as typeof result : {}
+      } catch {
+        const readableBody = responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)
+        const detail = response.status === 429
+          ? 'Too many attempts. Please wait a minute before trying again.'
+          : readableBody
+            ? `HTTP ${response.status}: ${readableBody}`
+            : `The server returned an empty response (HTTP ${response.status}). Please try again.`
+        throw new Error(detail)
+      }
+      if (!response.ok) throw new Error(result.error || (response.status === 429 ? 'Too many attempts. Please wait a minute before trying again.' : `Authentication failed (HTTP ${response.status})`))
       if (typeof result.token !== 'string' || result.token.length < 40) {
         throw new Error('The server returned an invalid session. Please try again.')
       }
@@ -437,6 +497,278 @@ function App() {
     finally { setBusy(false) }
   }
 
+  const refreshProjects = useCallback(async () => {
+    const data = await api<VentureProject[]>('/api/v1/projects')
+    setProjects(data)
+    const pairs = await Promise.all(data.map(async project => {
+      try { return [project.id, await api<ProjectWorkflow[]>(`/api/v1/projects/${project.id}/workflows`)] as const }
+      catch { return [project.id, []] as const }
+    }))
+    setProjectWorkflows(Object.fromEntries(pairs))
+    const campaignPairs = await Promise.all(data.map(async project => {
+      try { return [project.id, await api<MarketingCampaign[]>(`/api/v1/projects/${project.id}/campaigns`)] as const }
+      catch { return [project.id, []] as const }
+    }))
+    setMarketingCampaigns(Object.fromEntries(campaignPairs))
+    const workspaces = await Promise.all(data.map(async project => {
+      try {
+        const artifacts = await api<ProjectArtifact[]>(`/api/v1/projects/${project.id}/workspace/artifacts`)
+        if (!artifacts.length) return [project.id, []] as const
+        const files = await api<WorkspaceFile[]>(`/api/v1/projects/${project.id}/workspace/files`)
+        return [project.id, files] as const
+      } catch { return [project.id, []] as const }
+    }))
+    setWorkspaceFiles(Object.fromEntries(workspaces))
+    const artifactPairs = await Promise.all(data.map(async project => {
+      try { return [project.id, await api<ProjectArtifact[]>(`/api/v1/projects/${project.id}/workspace/artifacts`)] as const }
+      catch { return [project.id, []] as const }
+    }))
+    setProjectArtifacts(Object.fromEntries(artifactPairs))
+    const reviewPairs = await Promise.all(data.map(async project => {
+      try { return [project.id, await api<ProjectReview[]>(`/api/v1/projects/${project.id}/reviews`)] as const }
+      catch { return [project.id, []] as const }
+    }))
+    setProjectReviews(Object.fromEntries(reviewPairs))
+  }, [])
+
+  useEffect(() => {
+    if (!authenticated || tab !== 'projects') return
+    let active = true
+    void Promise.resolve().then(() => {
+      if (active) void refreshProjects().catch(e => setError(e instanceof Error ? e.message : 'Could not load projects'))
+    })
+    const timer = window.setInterval(() => {
+      if (active) void refreshProjects().catch(e => setError(e instanceof Error ? e.message : 'Could not refresh project progress'))
+    }, 10000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [authenticated, tab, activeWorkspaceId, refreshProjects])
+
+  const createProject = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!projectName.trim() || !projectGoal.trim()) return
+    setProjectBusy(true); setError('')
+    try {
+      await api<VentureProject>('/api/v1/projects', { method:'POST', body:JSON.stringify({name:projectName.trim(),goal:projectGoal.trim(),projectType}) })
+      setProjectName(''); setProjectGoal(''); setProjectType('WEBSITE'); setShowProjectForm(false)
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not create project') }
+    finally { setProjectBusy(false) }
+  }
+
+  const updateProjectStatus = async (project:VentureProject, status:string) => {
+    try {
+      await api<VentureProject>(`/api/v1/projects/${project.id}/status`, {method:'PATCH',body:JSON.stringify({status})})
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not update project status') }
+  }
+
+  const createProjectWorkspace = async (projectId:number) => {
+    setWorkspaceBusy(projectId); setError('')
+    try {
+      await api<ProjectArtifact[]>('/api/v1/projects/' + projectId + '/workspace/scaffold', {method:'POST'})
+      const files = await api<WorkspaceFile[]>('/api/v1/projects/' + projectId + '/workspace/files')
+      setWorkspaceFiles(current=>({...current,[projectId]:files}))
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not scaffold workspace') }
+    finally { setWorkspaceBusy(null) }
+  }
+
+  const exportProjectWorkspace = async (projectId:number) => {
+    try {
+      const response = await fetch(apiUrl('/api/v1/projects/' + projectId + '/workspace/export.zip'), {headers:{...(sessionToken?{Authorization:'Bearer '+sessionToken}:{}),...(selectedWorkspaceId?{'X-Aurora-Workspace':String(selectedWorkspaceId)}:{})}})
+      if(!response.ok) throw new Error('Could not export project workspace')
+      const blob=await response.blob();const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download='aurora-project-'+projectId+'.zip';document.body.appendChild(anchor);anchor.click();anchor.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000)
+    } catch(e) { setError(e instanceof Error ? e.message : 'Export failed') }
+  }
+
+  const generateProjectWebsite = async (project:VentureProject) => {
+    setWorkspaceBusy(project.id);setError('')
+    try {
+      const result=await api<ProjectGeneration>('/api/v1/projects/'+project.id+'/workspace/generate',{method:'POST',body:JSON.stringify({brief:'Design and implement a complete responsive website for '+project.name+'. Goal: '+project.goal+'. Create a polished, professional, modern frontend with a cohesive visual system, real page sections, mobile responsiveness and interactive navigation where useful. Avoid placeholder-only content.'})})
+      setWorkspaceFiles(current=>({...current,[project.id]:result.files}))
+      setSourceDrafts(current=>Object.fromEntries(Object.entries(current).filter(([key])=>!key.startsWith(project.id+":"))))
+      setPreviewUrls(current=>({...current,[project.id]:''}))
+      setPreviewBuilds(current=>({...current,[project.id]:{status:'NOT_BUILT',logs:'New source generated. Build to inspect this version.',builtAt:new Date().toISOString()}}))
+      await refreshProjects()
+    }catch(e){setError(e instanceof Error?e.message:'Website generation failed')}
+    finally{setWorkspaceBusy(null)}
+  }
+
+  const buildProjectPreview = async (projectId:number) => {
+    setPreviewBusyProject(projectId);setError('')
+    try {
+      const result=await api<PreviewBuild>(`/api/v1/projects/${projectId}/workspace/build`,{method:'POST'})
+      setPreviewBuilds(current=>({...current,[projectId]:result}))
+      if(result.status==='SUCCEEDED'){
+        const access=await api<PreviewAccess>(`/api/v1/projects/${projectId}/workspace/preview-access`,{method:'POST'})
+        setPreviewUrls(current=>({...current,[projectId]:access.url}))
+      } else setPreviewUrls(current=>({...current,[projectId]:''}))
+    } catch(e) { setError(e instanceof Error?e.message:'Website build failed') }
+    finally { setPreviewBusyProject(null) }
+  }
+
+  const refreshProjectPreviewAccess = async (projectId:number) => {
+    try {
+      const access=await api<PreviewAccess>(`/api/v1/projects/${projectId}/workspace/preview-access`,{method:'POST'})
+      setPreviewUrls(current=>({...current,[projectId]:access.url}))
+    } catch(e) { setError(e instanceof Error?e.message:'Could not refresh preview link') }
+  }
+
+  const saveProjectSource = async (projectId:number,file:WorkspaceFile) => {
+    const key=projectId+":"+file.path;const content=sourceDrafts[key]??file.content
+    setSourceBusy(key);setError('')
+    try {
+      await api<WorkspaceFile>(`/api/v1/projects/${projectId}/workspace/file`,{method:'PUT',body:JSON.stringify({path:file.path,content})})
+      setSourceDrafts(current=>{const next={...current};delete next[key];return next})
+      const files=await api<WorkspaceFile[]>(`/api/v1/projects/${projectId}/workspace/files`);setWorkspaceFiles(current=>({...current,[projectId]:files}))
+      const artifact=projectArtifacts[projectId]?.find(a=>a.relativePath===file.path)
+      if(artifact){const versions=await api<ArtifactVersion[]>(`/api/v1/projects/${projectId}/workspace/artifacts/${artifact.id}/versions`);setSourceVersions(current=>({...current,[artifact.id]:versions}))}
+      setPreviewUrls(current=>({...current,[projectId]:''}));setPreviewBuilds(current=>({...current,[projectId]:{status:'NOT_BUILT',logs:'Source changed. Build again to inspect the latest version.',builtAt:new Date().toISOString()}}))
+    } catch(e) {setError(e instanceof Error?e.message:'Could not save source file')}
+    finally {setSourceBusy(null)}
+  }
+  const runProjectQualityReview = async (projectId:number,agentId:'qa-agent'|'security-agent') => {
+    setQualityBusy(projectId);setError('')
+    try {
+      const result=await api<ProjectQualityResult>(`/api/v1/projects/${projectId}/quality/${agentId}`,{method:'POST',body:JSON.stringify({})})
+      setQualityResults(current=>({...current,[projectId]:result}))
+      await refreshProjects()
+    } catch(e) {setError(e instanceof Error?e.message:'Quality review failed')}
+    finally {setQualityBusy(null)}
+  }
+  const runBrowserQA=async(projectId:number)=>{setQualityBusy(projectId);setError('');try{const result=await api<BrowserQAResult>(`/api/v1/projects/${projectId}/quality/browser`,{method:'POST',body:'{}'});setBrowserQAResults(current=>({...current,[projectId]:result}));await refreshProjects()}catch(e){setError(e instanceof Error?e.message:'Browser QA failed')}finally{setQualityBusy(null)}}
+  const loadSourceVersions = async (projectId:number,artifactId:number) => {
+    try {const versions=await api<ArtifactVersion[]>(`/api/v1/projects/${projectId}/workspace/artifacts/${artifactId}/versions`);setSourceVersions(current=>({...current,[artifactId]:versions}))}
+    catch(e){setError(e instanceof Error?e.message:'Could not load version history')}
+  }
+  const inspectSourceVersion = async (projectId:number,artifactId:number,versionId:number) => {
+    try {const version=await api<ArtifactVersionDetail>(`/api/v1/projects/${projectId}/workspace/artifacts/${artifactId}/versions/${versionId}`);setSourceVersionContent(current=>({...current,[artifactId]:version}))}
+    catch(e){setError(e instanceof Error?e.message:'Could not open saved version')}
+  }
+  const requestProjectReview = async (projectId:number, artifactId:number) => {
+    setReviewBusy(artifactId); setError('')
+    try {
+      await api<ProjectReview>(`/api/v1/projects/${projectId}/reviews`, {method:'POST',body:JSON.stringify({artifactId})})
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not request review') }
+    finally { setReviewBusy(null) }
+  }
+
+  const decideProjectReview = async (projectId:number, review:ProjectReview, decision:string) => {
+    const feedback=reviewFeedback[review.id]||''
+    if(decision!=='APPROVED'&&!feedback.trim()){setError('Please add feedback when requesting changes or rejecting work.');return}
+    setReviewBusy(review.id); setError('')
+    try {
+      await api<ProjectReview>(`/api/v1/projects/${projectId}/reviews/${review.id}/decision`,{method:'POST',body:JSON.stringify({decision,feedback})})
+      setReviewFeedback(current=>({...current,[review.id]:''}))
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not save review decision') }
+    finally { setReviewBusy(null) }
+  }
+
+  const startProjectWorkflow = async (projectId:number) => {
+    setWorkflowBusyProject(projectId); setError('')
+    try {
+      await api<ProjectWorkflow>(`/api/v1/projects/${projectId}/workflows`, {method:'POST',body:JSON.stringify({template:workflowTemplate[projectId]||'website-planning'})})
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not start agent workflow') }
+    finally { setWorkflowBusyProject(null) }
+  }
+
+  const campaignDraftFor = (projectId:number):CampaignDraft => campaignDrafts[projectId] || {title:'',channel:'INSTAGRAM',format:'POST',brief:'',content:'',callToAction:''}
+  const updateCampaignDraft = (projectId:number, patch:Partial<CampaignDraft>) => setCampaignDrafts(current=>{
+    const existing=current[projectId]??{title:'',channel:'INSTAGRAM',format:'POST',brief:'',content:'',callToAction:''}
+    return {...current,[projectId]:{...existing,...patch}}
+  })
+
+  const generateCampaignCopy = async (project:VentureProject) => {
+    const draft=campaignDraftFor(project.id)
+    if(!draft.brief.trim()){setError('Add a short creative brief before asking the Content Agent to generate copy.');return}
+    setCampaignGenerating(project.id); setError('')
+    try {
+      const result=await api<{agentRunId:number;content:string}>(`/api/v1/projects/${project.id}/campaigns/generate-copy`,{method:'POST',body:JSON.stringify({channel:draft.channel,format:draft.format,brief:draft.brief})})
+      updateCampaignDraft(project.id,{content:result.content})
+    } catch(e) { setError(e instanceof Error?e.message:'Could not generate campaign copy') }
+    finally { setCampaignGenerating(null) }
+  }
+
+  const createCampaign = async (event:FormEvent, projectId:number) => {
+    event.preventDefault(); const draft=campaignDraftFor(projectId)
+    if(!draft.title.trim()||!draft.content.trim()) return
+    setCampaignBusy(projectId); setError('')
+    try {
+      const editingId=campaignEditing[projectId]
+      const payload={title:draft.title,channel:draft.channel,format:draft.format,content:draft.content,callToAction:draft.callToAction}
+      await api<MarketingCampaign>(editingId?`/api/v1/projects/${projectId}/campaigns/${editingId}`:`/api/v1/projects/${projectId}/campaigns`,{method:editingId?'PUT':'POST',body:JSON.stringify(payload)})
+      setCampaignDrafts(current=>({...current,[projectId]:{title:'',channel:'INSTAGRAM',format:'POST',brief:'',content:'',callToAction:''}}))
+      setCampaignEditing(current=>({...current,[projectId]:null}))
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error?e.message:'Could not save campaign draft') }
+    finally { setCampaignBusy(null) }
+  }
+
+  const editCampaignDraft = (projectId:number, campaign:MarketingCampaign) => {
+    setCampaignEditing(current=>({...current,[projectId]:campaign.id}))
+    setCampaignDrafts(current=>({...current,[projectId]:{title:campaign.title,channel:campaign.channel,format:campaign.format,brief:'',content:campaign.content,callToAction:campaign.callToAction||''}}))
+  }
+
+  const submitCampaign = async (projectId:number, campaignId:number) => {
+    setCampaignBusy(campaignId); setError('')
+    try { await api<MarketingCampaign>(`/api/v1/projects/${projectId}/campaigns/${campaignId}/submit`,{method:'POST'}); await refreshProjects() }
+    catch(e) { setError(e instanceof Error?e.message:'Could not submit campaign for review') }
+    finally { setCampaignBusy(null) }
+  }
+
+  const decideCampaign = async (projectId:number, campaignId:number, decision:'APPROVED'|'CHANGES_REQUESTED'|'REJECTED') => {
+    const feedback=campaignFeedback[campaignId]||''
+    if(decision!=='APPROVED'&&!feedback.trim()){setError('Add feedback when requesting changes or rejecting a campaign.');return}
+    setCampaignBusy(campaignId); setError('')
+    try {
+      await api<MarketingCampaign>(`/api/v1/projects/${projectId}/campaigns/${campaignId}/decision`,{method:'POST',body:JSON.stringify({decision,feedback})})
+      setCampaignFeedback(current=>({...current,[campaignId]:''})); await refreshProjects()
+    } catch(e) { setError(e instanceof Error?e.message:'Could not save campaign decision') }
+    finally { setCampaignBusy(null) }
+  }
+
+  const scheduleCampaign = async (projectId:number, campaignId:number) => {
+    const value=campaignScheduleDrafts[campaignId]
+    if(!value){setError('Choose a future date and time first.');return}
+    setCampaignBusy(campaignId); setError('')
+    try {
+      await api<MarketingCampaign>(`/api/v1/projects/${projectId}/campaigns/${campaignId}/schedule`,{method:'POST',body:JSON.stringify({scheduledAt:new Date(value).toISOString()})})
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error?e.message:'Could not queue campaign') }
+    finally { setCampaignBusy(null) }
+  }
+
+  const approveWorkflowStep = async (projectId:number, workflowId:number, stepId:number) => {
+    try {
+      await api<ProjectWorkflow>(`/api/v1/projects/${projectId}/workflows/${workflowId}/steps/${stepId}/approve`, {method:'POST'})
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not approve workflow step') }
+  }
+
+  const retryWorkflowStep = async (projectId:number, workflowId:number, stepId:number) => {
+    if (!window.confirm('Retry this failed stage? A new AI run may incur provider charges. The previous run and its usage record will be retained.')) return
+    try {
+      await api<ProjectWorkflow>(`/api/v1/projects/${projectId}/workflows/${workflowId}/steps/${stepId}/retry`, {method:'POST'})
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not safely retry workflow step') }
+  }
+
+  const cancelProjectWorkflow = async (projectId:number, workflowId:number) => {
+    try {
+      await api<ProjectWorkflow>(`/api/v1/projects/${projectId}/workflows/${workflowId}/cancel`, {method:'POST'})
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : 'Could not cancel workflow') }
+  }
+
+  const controlProjectWorkflow = async (projectId:number, workflowId:number, action:'pause'|'resume') => {
+    try {
+      await api<ProjectWorkflow>(`/api/v1/projects/${projectId}/workflows/${workflowId}/${action}`, {method:'POST'})
+      await refreshProjects()
+    } catch(e) { setError(e instanceof Error ? e.message : `Could not ${action} workflow`) }
+  }
+
   const runResearch = async (event: FormEvent) => {
     event.preventDefault()
     if (!researchQuestion.trim()) return
@@ -610,8 +942,9 @@ function App() {
 
   const canManageMembers = currentRole === 'OWNER' || currentRole === 'ADMIN'
   const canInviteAdmins = currentRole === 'OWNER'
+  const canManageProjects = currentRole === 'OWNER' || currentRole === 'ADMIN' || currentRole === 'MEMBER'
 
-  const title = ({ members: 'Members & invitations', overview: 'Overview', tasks: 'Task centre', approvals: 'Approval centre', activity: 'Activity log', businesses: 'Businesses', agents: 'AI employees', memory: 'Shared memory', research: 'Customer research', settings: 'Account settings', admin: 'Platform access monitor' } as Record<Tab, string>)[tab]
+  const title = ({ members: 'Members & invitations', overview: 'Overview', tasks: 'Task centre', approvals: 'Approval centre', activity: 'Activity log', businesses: 'Businesses', projects: 'Project factory', agents: 'AI employees', memory: 'Shared memory', research: 'Customer research', settings: 'Account settings', admin: 'Platform access monitor' } as Record<Tab, string>)[tab]
   const nav = (key: Tab, icon: string, label: string) => <button className={`nav-item ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}><span>{icon}</span>{label}{key === 'approvals' && stats.pendingApprovals > 0 && <b className="nav-count">{stats.pendingApprovals}</b>}</button>
 
   return (
@@ -656,6 +989,7 @@ function App() {
         <nav>
           {nav('overview', '◫', 'Overview')}
           {nav('businesses', '▦', 'Businesses')}
+          {nav('projects', '⌘', 'Projects')}
           {nav('agents', '✳', 'AI employees')}
           {nav('memory', '▤', 'Shared memory')}
           {nav('research', '⌕', 'Customer research')}
@@ -672,7 +1006,7 @@ function App() {
       <main className="main-content">
         <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> {title}</div><div className="topbar-right">{workspaces.length > 1 && <select className="workspace-switcher" aria-label="Switch workspace" value={activeWorkspaceId ?? ''} onChange={e=>void switchWorkspace(Number(e.target.value))}>{workspaces.map(workspace=><option key={workspace.id} value={workspace.id}>{workspace.name} · {workspace.role}</option>)}</select>}<span className="environment">LOCAL DEVELOPMENT</span><button className="text-button" onClick={()=>void logout()}>Sign out ↗</button></div></header>
         <section className="page">
-          <div className="page-heading"><div><div className="eyebrow">{dateLabel}</div><h1>{tab === 'overview' ? 'Good evening.' : title}</h1><p>{tab === 'overview' ? "Here's the current state of your business operating system." : ({ tasks: 'Create and track work across AURORA.', approvals: 'Important actions stay under your control.', activity: 'A traceable record of activity across the platform.', businesses: 'Business workspaces will live here.', agents: 'Specialised AI workers will be managed here.', memory: 'A shared knowledge store used as context by all AI employees.', research: 'Capture customer interviews and distinguish evidence from assumptions.', settings: 'Manage your account security.', members: 'Manage workspace access and delegate administration.', admin: 'Global account activity, login sessions and access controls.' } as Record<Tab, string>)[tab]}</p></div><div className="system-pill"><span className={online ? 'pulse-dot' : 'pulse-dot offline'} />{online ? 'System operational' : 'Backend disconnected'}</div></div>
+          <div className="page-heading"><div><div className="eyebrow">{dateLabel}</div><h1>{tab === 'overview' ? 'Good evening.' : title}</h1><p>{tab === 'overview' ? "Here's the current state of your business operating system." : ({ tasks: 'Create and track work across AURORA.', approvals: 'Important actions stay under your control.', activity: 'A traceable record of activity across the platform.', businesses: 'Business workspaces will live here.', projects: 'Create projects and launch coordinated agent workflows.', agents: 'Specialised AI workers will be managed here.', memory: 'A shared knowledge store used as context by all AI employees.', research: 'Capture customer interviews and distinguish evidence from assumptions.', settings: 'Manage your account security.', members: 'Manage workspace access and delegate administration.', admin: 'Global account activity, login sessions and access controls.' } as Record<Tab, string>)[tab]}</p></div><div className="system-pill"><span className={online ? 'pulse-dot' : 'pulse-dot offline'} />{online ? 'System operational' : 'Backend disconnected'}</div></div>
 
           {error && <div className="error-banner"><span>{error}</span><button onClick={() => void refresh()}>Retry</button></div>}
 
@@ -690,6 +1024,53 @@ function App() {
               <section className="content-card"><div className="card-heading"><div><h3>Recent activity</h3><p>Latest recorded events</p></div><button className="text-button" onClick={() => setTab('activity')}>View log →</button></div>{activity.slice(0,4).map(item => <div className="activity-item" key={item.id}><span className="activity-symbol success">✓</span><div><strong>{item.eventType.replaceAll('_',' ')}</strong><small>{item.details}</small></div><time>{new Date(item.createdAt).toLocaleDateString()}</time></div>)}{activity.length===0 && <p className="empty-note">No activity recorded yet. Create your first task to begin.</p>}</section>
             </div>
           </>}
+
+          {tab === 'projects' && <section className="content-card module-card"><div className="module-toolbar"><div><h3>Project factory</h3><p>{projects.length} project{projects.length===1?'':'s'} · agent workflows are saved and progress refreshes automatically</p></div>{canManageProjects && <button className="primary-button" onClick={()=>setShowProjectForm(v=>!v)}>{showProjectForm?'Close form':'+ New project'}</button>}</div>
+            {canManageProjects && showProjectForm && <form className="project-form" onSubmit={createProject}><label>Project name<input value={projectName} onChange={e=>setProjectName(e.target.value)} maxLength={160} placeholder="e.g. Build a coffee shop website" required/></label><label>Project goal<textarea value={projectGoal} onChange={e=>setProjectGoal(e.target.value)} maxLength={4000} rows={3} placeholder="Describe who it is for, the problem and what success looks like." required/></label><label>Project type<select value={projectType} onChange={e=>setProjectType(e.target.value)}><option value="WEBSITE">Website</option><option value="APPLICATION">Application</option><option value="MARKETING">Marketing</option><option value="GENERAL">General project</option></select></label><button className="primary-button" disabled={projectBusy}>{projectBusy?'Creating…':'Create project'}</button></form>}
+            <div className="project-list">{projects.map(project=><article className="project-card" key={project.id}><div className="project-head"><div><span className="project-type">{project.projectType}</span><h3>{project.name}</h3><p>{project.goal}</p></div>{canManageProjects ? <select className={`status-select status-${project.status.toLowerCase()}`} value={project.status} onChange={e=>void updateProjectStatus(project,e.target.value)} aria-label={`Project status for ${project.name}`}><option value="PLANNING">Planning</option><option value="ACTIVE">Active</option><option value="PAUSED">Paused</option><option value="COMPLETED">Completed</option><option value="ARCHIVED">Archived</option></select> : <span className={`project-status status-${project.status.toLowerCase()}`}>{project.status}</span>}</div>{canManageProjects && <div className="project-workflow-controls"><button className="secondary-button" disabled={workspaceBusy===project.id} onClick={()=>void createProjectWorkspace(project.id)}>{workspaceBusy===project.id?'Working…':'▣ Create website starter'}</button><button className="primary-button" disabled={workspaceBusy===project.id} onClick={()=>void generateProjectWebsite(project)}>{workspaceBusy===project.id?'Generating…':'✦ Generate website with AI'}</button>{workspaceFiles[project.id]?.length>0&&<><button className="secondary-button" onClick={()=>void exportProjectWorkspace(project.id)}>↓ Export ZIP</button><button className="preview-build-button" disabled={workspaceBusy===project.id||previewBusyProject===project.id} onClick={()=>void buildProjectPreview(project.id)}>{previewBusyProject===project.id?'Building safely…':'▣ Build & preview'}</button><button className="secondary-button" disabled={qualityBusy===project.id} onClick={()=>void runProjectQualityReview(project.id,'qa-agent')}>AI source review</button><button className="preview-build-button" disabled={qualityBusy===project.id} onClick={()=>void runBrowserQA(project.id)}>{qualityBusy===project.id?'Testing in browser…':'◉ Browser QA'}</button><button className="secondary-button" disabled={qualityBusy===project.id} onClick={()=>void runProjectQualityReview(project.id,'security-agent')}>⌑ Security review</button></>}<label>Start agent team<select value={workflowTemplate[project.id]||'website-planning'} onChange={e=>setWorkflowTemplate(current=>({...current,[project.id]:e.target.value}))}><option value="website-planning">Website / app planning</option><option value="website-build">Research, build & preview website</option><option value="marketing-plan">Marketing plan</option></select></label><button className="primary-button" disabled={workflowBusyProject===project.id} onClick={()=>void startProjectWorkflow(project.id)}>{workflowBusyProject===project.id?'Queueing…':'▶ Start workflow'}</button></div>}
+              {(previewBuilds[project.id]||previewUrls[project.id])&&<section className="project-preview-panel">
+                <div className="preview-toolbar"><div><strong>Website preview</strong><small>{previewBuilds[project.id]?.status==='SUCCEEDED'?'Build successful · isolated container':'Build did not complete'}</small></div>{previewUrls[project.id]&&<div className="preview-actions"><button className={previewModes[project.id]!=='mobile'?'selected':''} onClick={()=>setPreviewModes(current=>({...current,[project.id]:'desktop'}))}>Desktop</button><button className={previewModes[project.id]==='mobile'?'selected':''} onClick={()=>setPreviewModes(current=>({...current,[project.id]:'mobile'}))}>Mobile</button><button onClick={()=>void refreshProjectPreviewAccess(project.id)}>Refresh link</button></div>}</div>
+                {previewUrls[project.id]&&<div className={`preview-frame-wrap ${previewModes[project.id]==='mobile'?'mobile':''}`}><iframe key={previewUrls[project.id]} title={`${project.name} website preview`} src={apiUrl(previewUrls[project.id])} sandbox="allow-scripts" referrerPolicy="no-referrer"/></div>}
+                {previewBuilds[project.id]?.logs&&<details className="preview-build-logs"><summary>Build output</summary><pre>{previewBuilds[project.id].logs}</pre></details>}
+              </section>}
+              <div className="project-review-panel">
+                {browserQAResults[project.id]&&<article className="quality-report-panel"><div className="quality-report-head"><div><strong>Browser QA · {browserQAResults[project.id].status}</strong><small>Real Chromium run · Build and preview verified first · No source changes</small></div><button className="text-button" onClick={()=>setBrowserQAResults(current=>{const next={...current};delete next[project.id];return next})}>Dismiss</button></div><p>{browserQAResults[project.id].issues.length} finding(s) · {browserQAResults[project.id].checks.length} checks</p><pre>{JSON.stringify({checks:browserQAResults[project.id].checks,issues:browserQAResults[project.id].issues},null,2)}</pre>{browserQAResults[project.id].screenshots?.desktop?.data&&<div className="browser-qa-shots"><h4>Desktop screenshot</h4><img src={`data:image/jpeg;base64,${browserQAResults[project.id].screenshots.desktop?.data}`} alt="Desktop website QA screenshot"/>{browserQAResults[project.id].screenshots.mobile?.data&&<><h4>Mobile screenshot</h4><img src={`data:image/jpeg;base64,${browserQAResults[project.id].screenshots.mobile?.data}`} alt="Mobile website QA screenshot"/></>}</div>}</article>}
+                {qualityResults[project.id]&&<article className="quality-report-panel"><div className="quality-report-head"><div><strong>{qualityResults[project.id].agentId==='security-agent'?'Security review':'QA review'} · Run #{qualityResults[project.id].agentRunId}</strong><small>Saved as a project report · Advisory only · No source changes</small></div><button className="text-button" onClick={()=>setQualityResults(current=>{const next={...current};delete next[project.id];return next})}>Dismiss</button></div><pre>{qualityResults[project.id].report}</pre><small>{qualityResults[project.id].notice}</small></article>}
+                <div className="section-title"><div><h3>Review & approval</h3><p>Inspect saved files, request review, and keep a decision history. Approval never deploys or publishes.</p></div><span className="pending-chip">{(projectReviews[project.id]||[]).filter(r=>r.status==='PENDING_REVIEW').length} awaiting</span></div>
+                {(workspaceFiles[project.id]||[]).map(file=>{
+                  const editableSource=file.path==='src/App.tsx'||file.path==='src/style.css'||file.path.startsWith('src/components/')||file.path.startsWith('src/pages/')
+                  const reviewsForFile = (projectReviews[project.id]||[]).filter(r=>r.artifactPath===file.path)
+                  return <article className="review-file" key={file.path}><div className="review-file-head"><div><strong>{file.path}</strong><small>{file.sizeBytes.toLocaleString()} bytes · {reviewsForFile.length?reviewsForFile[0].status.replaceAll('_',' '):'Not submitted for review'}</small></div>{canManageProjects && <button className="secondary-button" disabled={reviewBusy!==null||!projectArtifacts[project.id]?.some(a=>a.relativePath===file.path)} onClick={()=>{const id=projectArtifacts[project.id]?.find(a=>a.relativePath===file.path)?.id;if(id)void requestProjectReview(project.id,id);else setError('Artifact metadata is not available yet. Refresh the project.')}}>Request review</button>}</div><details className="review-source"><summary>Open source editor · {file.path}</summary><div className="source-editor"><div className="source-editor-toolbar"><span>Current working copy · {file.sizeBytes.toLocaleString()} bytes</span><button className="primary-button" disabled={sourceBusy===project.id+":"+file.path||!canManageProjects||!editableSource} onClick={()=>void saveProjectSource(project.id,file)}>{!editableSource?'Read-only file':sourceBusy===project.id+":"+file.path?'Saving…':'Save new version'}</button></div><textarea className="source-code-editor" spellCheck={false} aria-label={'Edit '+file.path} value={sourceDrafts[project.id+":"+file.path]??file.content} onChange={e=>setSourceDrafts(current=>({...current,[project.id+":"+file.path]:e.target.value}))} disabled={!canManageProjects||!editableSource}/><div className="source-editor-toolbar"><button className="text-button" onClick={()=>{const artifact=projectArtifacts[project.id]?.find(a=>a.relativePath===file.path);if(artifact)void loadSourceVersions(project.id,artifact.id)}}>Load version history</button><small>{editableSource?'Saving creates an immutable snapshot. Build again to preview edits.':'This project file is inspectable but not editable through the source editor.'}</small></div>{(()=>{const artifact=projectArtifacts[project.id]?.find(a=>a.relativePath===file.path);const history=artifact?sourceVersions[artifact.id]||[]:[];const selected=artifact?sourceVersionContent[artifact.id]:undefined;return <>{history.length>0&&<div className="source-version-list"><strong>Saved versions</strong>{history.map(version=><div className="source-version-row" key={version.id}><span>v{version.versionNumber} · {new Date(version.createdAt).toLocaleString()} · {version.sha256.slice(0,12)}</span><button className="text-button" onClick={()=>artifact&&void inspectSourceVersion(project.id,artifact.id,version.id)}>Inspect</button></div>)}</div>}{selected&&<div className="source-version-preview"><div className="source-editor-toolbar"><strong>Compare version {selected.versionNumber} with working copy</strong><button className="secondary-button" onClick={()=>setSourceDrafts(current=>({...current,[project.id+":"+file.path]:selected.content}))}>Use saved version as editor draft</button></div><div className="source-compare-grid"><section><strong>Saved version · v{selected.versionNumber}</strong><pre>{selected.content}</pre></section><section><strong>Current working copy</strong><pre>{sourceDrafts[project.id+":"+file.path]??file.content}</pre></section></div></div>}</>})()}</div></details>{reviewsForFile.map(review=><div className="review-history" key={review.id}><div className="review-history-head"><strong>Review #{review.id} · v{review.artifactVersionNumber??'unknown'} · {review.status.replaceAll('_',' ')}</strong><small>Requested {new Date(review.createdAt).toLocaleString()} by {review.requestedBy}</small></div>{review.feedback&&<p>{review.feedback}</p>}{review.reviewedBy&&<small>Decision by {review.reviewedBy} · {review.reviewedAt?new Date(review.reviewedAt).toLocaleString():''}</small>}{review.status==='PENDING_REVIEW'&&(currentRole==='OWNER'||currentRole==='ADMIN')&&<div className="review-decision"><textarea value={reviewFeedback[review.id]||''} onChange={e=>setReviewFeedback(current=>({...current,[review.id]:e.target.value}))} rows={2} maxLength={4000} placeholder="Feedback for the agent (required for changes or rejection)"/><div className="approval-actions"><button className="reject-button" disabled={reviewBusy===review.id} onClick={()=>void decideProjectReview(project.id,review,'REJECTED')}>Reject</button><button className="secondary-button" disabled={reviewBusy===review.id} onClick={()=>void decideProjectReview(project.id,review,'CHANGES_REQUESTED')}>Request changes</button><button className="approve-button" disabled={reviewBusy===review.id} onClick={()=>void decideProjectReview(project.id,review,'APPROVED')}>Approve version</button></div></div>}</div>)}</article>
+                })}
+                {(workspaceFiles[project.id]||[]).length===0&&<p className="empty-note">Create a starter workspace or generate a website to review project files here.</p>}
+                {(projectReviews[project.id]||[]).length>0&&<details className="review-history-all"><summary>Full review history ({projectReviews[project.id].length})</summary>{projectReviews[project.id].map(review=><p key={review.id}>#{review.id} · {review.artifactName} · {review.status.replaceAll('_',' ')} · {new Date(review.createdAt).toLocaleString()}{review.feedback?' · '+review.feedback:''}</p>)}</details>}
+              </div>
+              <section className="campaign-manager">
+                <div className="section-title"><div><h3>Campaign studio</h3><p>Draft channel-specific content, submit it for owner review, then queue approved work. Aurora does not publish to social accounts yet.</p></div><span className="pending-chip">{(marketingCampaigns[project.id]||[]).length} campaigns</span></div>
+                {canManageProjects && <form className="project-form" onSubmit={event=>void createCampaign(event,project.id)}>
+                  <label>Campaign title<input maxLength={180} required value={campaignDraftFor(project.id).title} onChange={e=>updateCampaignDraft(project.id,{title:e.target.value})} placeholder="e.g. Meet the new lunch menu"/></label>
+                  <div className="project-workflow-controls"><label>Channel<select value={campaignDraftFor(project.id).channel} onChange={e=>updateCampaignDraft(project.id,{channel:e.target.value})}><option value="INSTAGRAM">Instagram</option><option value="FACEBOOK">Facebook</option><option value="TIKTOK">TikTok</option><option value="YOUTUBE">YouTube</option><option value="LINKEDIN">LinkedIn</option><option value="X">X</option><option value="EMAIL">Email</option><option value="OTHER">Other</option></select></label><label>Format<select value={campaignDraftFor(project.id).format} onChange={e=>updateCampaignDraft(project.id,{format:e.target.value})}><option value="POST">Post</option><option value="STORY">Story</option><option value="REEL">Reel</option><option value="VIDEO">Video</option><option value="CAROUSEL">Carousel</option><option value="EMAIL">Email</option><option value="OTHER">Other</option></select></label></div>
+                  <label>Creative brief for AI<textarea rows={2} maxLength={4000} value={campaignDraftFor(project.id).brief} onChange={e=>updateCampaignDraft(project.id,{brief:e.target.value})} placeholder="Who should this reach, what should they understand, and what action should they take?"/></label>
+                  <button type="button" className="secondary-button" disabled={campaignGenerating===project.id} onClick={()=>void generateCampaignCopy(project)}>{campaignGenerating===project.id?'Generating…':'✦ Generate copy with Content Agent · uses AI budget'}</button>
+                  <label>Creative copy<textarea rows={4} maxLength={20000} required value={campaignDraftFor(project.id).content} onChange={e=>updateCampaignDraft(project.id,{content:e.target.value})} placeholder="Review and edit the generated caption, email or script before saving."/></label>
+                  <label>Call to action<input maxLength={500} value={campaignDraftFor(project.id).callToAction} onChange={e=>updateCampaignDraft(project.id,{callToAction:e.target.value})} placeholder="e.g. Visit us this weekend"/></label>
+                  <button className="primary-button" disabled={campaignBusy===project.id}>{campaignBusy===project.id?'Saving…':campaignEditing[project.id]?'Update campaign draft':'Save campaign draft'}</button>
+                </form>}
+                {(marketingCampaigns[project.id]||[]).map(campaign=><article className="approval-row" key={campaign.id}>
+                  <div className="approval-heading"><div><span className="action-type">{campaign.channel} · {campaign.format}</span><h3>{campaign.title}</h3></div><span className={`approval-status ${campaign.status.toLowerCase()}`}>{campaign.status.replaceAll('_',' ')}</span></div>
+                  <p className="campaign-copy">{campaign.content}</p>{campaign.callToAction&&<p><strong>CTA:</strong> {campaign.callToAction}</p>}
+                  {campaign.feedback&&<p className="decision-note">Review feedback: {campaign.feedback}</p>}
+                  {(campaign.status==='DRAFT'||campaign.status==='CHANGES_REQUESTED')&&<div className="approval-actions"><button className="secondary-button" onClick={()=>editCampaignDraft(project.id,campaign)}>Edit draft</button><button className="secondary-button" disabled={campaignBusy===campaign.id} onClick={()=>void submitCampaign(project.id,campaign.id)}>Submit for review</button></div>}
+                  {campaign.status==='PENDING_REVIEW'&&(currentRole==='OWNER'||currentRole==='ADMIN')&&<div className="review-decision"><textarea rows={2} maxLength={4000} value={campaignFeedback[campaign.id]||''} onChange={e=>setCampaignFeedback(current=>({...current,[campaign.id]:e.target.value}))} placeholder="Feedback (required for changes or rejection)"/><div className="approval-actions"><button className="reject-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'REJECTED')}>Reject</button><button className="secondary-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'CHANGES_REQUESTED')}>Request changes</button><button className="approve-button" disabled={campaignBusy===campaign.id} onClick={()=>void decideCampaign(project.id,campaign.id,'APPROVED')}>Approve</button></div></div>}
+                  {campaign.status==='APPROVED'&&(currentRole==='OWNER'||currentRole==='ADMIN')&&<div className="project-workflow-controls"><label>Queue date & time<input type="datetime-local" value={campaignScheduleDrafts[campaign.id]||''} onChange={e=>setCampaignScheduleDrafts(current=>({...current,[campaign.id]:e.target.value}))}/></label><button className="primary-button" disabled={campaignBusy===campaign.id} onClick={()=>void scheduleCampaign(project.id,campaign.id)}>Queue in Aurora</button></div>}
+                  {campaign.status==='SCHEDULED'&&<small>Queued for {campaign.scheduledAt?new Date(campaign.scheduledAt).toLocaleString():''}. This is an Aurora planning queue only; no social post has been sent.</small>}
+                  <small>Created {new Date(campaign.createdAt).toLocaleString()} · {campaign.createdBy}</small>
+                </article>)}
+                {(marketingCampaigns[project.id]||[]).length===0&&<p className="empty-note">No campaigns yet. Start a Marketing plan workflow for ideas, then save approved copy here.</p>}
+              </section>
+              {(projectWorkflows[project.id]||[]).map(wf=><div className="workflow-box" key={wf.run.id}><div className="workflow-title"><div><strong>{wf.run.workflowType.replaceAll('-',' ')}</strong><small>Run #{wf.run.id} · {new Date(wf.run.createdAt).toLocaleString()}</small>{(()=>{const tokenTotal=wf.steps.reduce((sum,step)=>sum+(step.totalTokens??0),0);const costSteps=wf.steps.filter(step=>step.providerCostUsd!==null);const reportedCost=costSteps.reduce((sum,step)=>sum+Number(step.providerCostUsd),0);return <small>{tokenTotal.toLocaleString()} tokens · {costSteps.length?`$${reportedCost.toFixed(6)} provider-reported across ${costSteps.length} steps`:'Provider cost not reported'}</small>})()}</div><span className={`workflow-status ${wf.run.status.toLowerCase()}`}>{wf.run.status.replaceAll('_',' ')}</span></div><div className="workflow-progress"><div className="workflow-progress-fill" style={{width:`${wf.steps.length?wf.steps.filter(s=>s.status==='SUCCEEDED').length/wf.steps.length*100:0}%`}}/></div><div className="workflow-steps">{wf.steps.map(step=><div className="workflow-step" key={step.id}><span className={`step-indicator ${step.status.toLowerCase()}`}>{step.status==='SUCCEEDED'?'✓':step.status==='RUNNING'?'↻':step.status==='FAILED'?'!':'·'}</span><div><strong>{step.stepOrder}. {step.title}</strong><small>{step.agentId} · {step.status}{step.dependsOnStepOrders?.length?` · waits for stage ${step.dependsOnStepOrders.join(', ')}`:' · no dependencies'}{step.approvalRequired?` · approval ${step.approvalStatus||'pending'}`:''}{step.agentRunId?` · Agent run #${step.agentRunId}`:''}{step.previousAgentRunId?` · Previous run #${step.previousAgentRunId}`:''}{step.retryCount?` · retry ${step.retryCount}/1`:''}</small>{step.usageStatus&&<small className="workflow-usage">{step.totalTokens!==null?`${step.totalTokens.toLocaleString()} tokens`: 'Token usage unavailable'} · {step.providerCostUsd!==null?`$${Number(step.providerCostUsd).toFixed(6)} provider-reported`:step.usageStatus==='UNAVAILABLE'?'Provider did not report cost':'Cost not reported'}{step.usageStatus==='UNKNOWN'?' · usage outcome unknown':''}</small>}{step.output && <details><summary>View agent result</summary><pre>{step.output}</pre></details>}{step.status==='AWAITING_APPROVAL'&&<small className="approval-pending-note">Website source generation is paused until an owner or administrator approves this stage. No source-generation request has been sent yet.</small>}{step.status==='AWAITING_APPROVAL'&&(currentRole==='OWNER'||currentRole==='ADMIN')&&<button className="approve-button workflow-approve-button" onClick={()=>void approveWorkflowStep(project.id,wf.run.id,step.id)}>Approve source generation</button>}{step.error&&<small className="error-note">{step.error}</small>}{step.status==='FAILED'&&step.retryCount===0&&(currentRole==='OWNER'||currentRole==='ADMIN')&&<button className="secondary-button workflow-retry-button" onClick={()=>void retryWorkflowStep(project.id,wf.run.id,step.id)}>Retry failed stage · may incur cost</button>}</div></div>)}</div>{wf.run.error&&<p className="error-note">{wf.run.error}</p>}{canManageProjects && <div className="workflow-controls">{['QUEUED','RUNNING'].includes(wf.run.status)&&<button className="secondary-button" onClick={()=>void controlProjectWorkflow(project.id,wf.run.id,'pause')}>Pause at next safe checkpoint</button>}{wf.run.status==='PAUSE_REQUESTED'&&<small>Pause requested · current stage will finish first</small>}{wf.run.status==='PAUSED'&&<button className="primary-button" onClick={()=>void controlProjectWorkflow(project.id,wf.run.id,'resume')}>Resume from checkpoint</button>}{['QUEUED','RUNNING','PAUSE_REQUESTED','PAUSED','AWAITING_APPROVAL','CANCEL_REQUESTED'].includes(wf.run.status)&&<button className="text-button cancel-workflow" onClick={()=>void cancelProjectWorkflow(project.id,wf.run.id)}>{wf.run.status==='CANCEL_REQUESTED'?'Cancellation requested':'Cancel workflow'}</button>}</div>}</div>)}
+              {(projectWorkflows[project.id]||[]).length===0&&<p className="empty-note project-hint">No agent workflow has run for this project yet. Starting one uses your configured AI provider and counts toward usage.</p>}</article>)}{projects.length===0&&<div className="empty-state"><span>⌘</span><h3>Start your first project</h3><p>Give Aurora a goal. It will research, develop a strategy, draft messaging and make a project plan using its current agent team.</p>{canManageProjects && <button className="primary-button" onClick={()=>setShowProjectForm(true)}>Create a project</button>}</div>}</div>
+          </section>}
 
           {tab === 'tasks' && <section className="content-card module-card"><div className="module-toolbar"><div><h3>Work queue</h3><p>{tasks.length} task{tasks.length===1?'':'s'} recorded</p></div><button className="primary-button" onClick={() => setShowTaskForm(v=>!v)}>{showTaskForm ? 'Close form' : '+ New task'}</button></div>
             {showTaskForm && <form className="task-form" onSubmit={createTask}><label>Task title<input value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} maxLength={160} placeholder="e.g. Research online business opportunities" required/></label><label>Description<textarea value={taskDescription} onChange={e=>setTaskDescription(e.target.value)} maxLength={2000} rows={3} placeholder="What needs to be done?"/></label><label>Priority<select value={taskPriority} onChange={e=>setTaskPriority(e.target.value)}><option value="LOW">Low</option><option value="NORMAL">Normal</option><option value="HIGH">High</option><option value="URGENT">Urgent</option></select></label><button className="primary-button" disabled={busy}>{busy?'Saving…':'Create task'}</button></form>}
@@ -737,7 +1118,7 @@ function App() {
 
           {tab==='settings' && <section className="content-card module-card"><div className="module-toolbar"><div><h3>Account security</h3><p>Change the password used to sign in to AURORA.</p></div><span className="building-label">PASSWORD PROTECTED</span></div><div className="agent-notice"><strong>Keep your account secure</strong><p>Use a unique password of at least 12 characters. This device stays signed in; other active sessions are revoked.</p></div>{passwordNotice && <div className="success-banner">{passwordNotice}</div>}<form className="research-form" onSubmit={changePassword}><label>Current password<input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" maxLength={72} required/></label><label>New password<input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" minLength={12} maxLength={72} required/><small>At least 12 characters.</small></label><label>Confirm new password<input type="password" value={confirmNewPassword} onChange={e=>setConfirmNewPassword(e.target.value)} autoComplete="new-password" minLength={12} maxLength={72} required/></label><button className="primary-button" disabled={passwordBusy}>{passwordBusy?'Updating…':'Change password'}</button></form></section>}
 
-          {tab==='agents' && <section className="content-card module-card"><div className="module-toolbar"><div><h3>Specialist agents</h3><p>Agent roles and capabilities registered in AURORA</p></div><span className="building-label">4 SPECIALIST AGENTS</span></div><div className="agent-notice"><strong>AURORA request allowance · not provider billing</strong><p>{aiUsage ? (aiUsage.exempt ? `Owner/admin exemption active. Your new AI requests are not counted. The workspace has recorded ${aiUsage.used} of ${aiUsage.limit} requests this month (${aiUsage.remaining} remaining). Historical requests are not attributed by user, so this total may include admin activity from before the exemption was applied.` : `${aiUsage.used} of ${aiUsage.limit} member requests used this month · ${aiUsage.remaining} remaining.`) : 'Usage allowance unavailable.'} Each agent stage makes one provider call. A four-stage workflow makes four calls; member calls count against the allowance, while owner/admin calls are exempt. Provider charges still apply to every AI request. {aiUsage && (aiUsage.providerRequests !== undefined ? `Provider ledger this month: ${aiUsage.providerRequests} recorded calls · ${(aiUsage.totalTokens ?? 0).toLocaleString()} reported tokens · $${(aiUsage.reportedCostUsd ?? 0).toFixed(6)} reported cost. ${aiUsage.requestsWithoutReportedCost ?? 0} calls have no reported cost yet; do not interpret missing cost as free usage.` : 'Provider usage ledger awaits the backend database migration.')}</p>{aiUsage?.businessUsage && aiUsage.businessUsage.length > 0 && <div className="audit-list">{aiUsage.businessUsage.map(item=><div className="audit-row" key={item.businessId ?? 'workspace'}><div className="audit-marker"/><div><strong>{item.businessName || 'Workspace-level work'}</strong><p>{item.providerRequests} calls · {item.totalTokens.toLocaleString()} tokens · ${item.reportedCostUsd.toFixed(6)} reported cost</p><small>{item.requestsWithoutReportedCost} calls without confirmed cost</small></div></div>)}</div>}</div><div className="agent-grid">{agents.map(agent=><article className="agent-card" key={agent.id}><div className="agent-card-top"><span className="agent-avatar">✳</span><span className={`agent-state ${agent.status.toLowerCase()}`}>{agent.status.replaceAll('_',' ')}</span></div><h3>{agent.name}</h3><span className="agent-role">{agent.role}</span><p>{agent.description}</p><div className="agent-capabilities">{agent.capabilities.map(cap=><span key={cap}>{cap}</span>)}</div><small>{agent.modelConfigured?`Model credentials detected · ${agent.model}`:'No AI model credentials configured'}</small><button className="text-button" onClick={()=>{setSelectedAgentId(agent.id);setResearchReport(null)}}>Use this agent →</button></article>)}</div><div className="agent-notice"><strong>Multi-agent workflow · Chama opportunity validation</strong><p>Run Research → Strategy quality audit → Content → Operations in sequence. Strategy checks source freshness, evidence labels and student-specific proof before recommending action. This creates drafts and recommendations only; it does not publish, spend money or contact customers. Model usage may incur charges.</p><button className="primary-button" onClick={()=>void runChamaWorkflow()} disabled={workflowBusy||!agents.some(a=>a.modelConfigured)}>{workflowBusy?'Agents working in sequence…':'Run validation workflow'}</button>{workflowBusy&&<p>Each specialist is working on the previous agent’s output. This may take a few minutes.</p>}{workflowResult&&<div className="research-report"><div className="report-heading"><strong>{workflowResult.workflow}</strong><small>{workflowResult.status} · {workflowResult.runs.length}/4 stages completed</small></div>{workflowResult.runs.map(run=><article key={run.id}><strong>{run.agentName} · {run.status}</strong><pre>{run.output||run.error||'No output'}</pre></article>)}</div>}</div><form className="research-form" onSubmit={runResearch}><label>Business attribution<select value={selectedBusinessId} onChange={e=>setSelectedBusinessId(e.target.value)}><option value="">Platform / workspace-level work</option>{businesses.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select><small>Choose a business to associate this run with its activity and spending ceiling.</small></label><label>Selected agent<select value={selectedAgentId} onChange={e=>setSelectedAgentId(e.target.value)}>{agents.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>Work request<textarea value={researchQuestion} onChange={e=>setResearchQuestion(e.target.value)} maxLength={5000} rows={4} placeholder="Describe the work you want this agent to perform…" required/></label><button className="primary-button" disabled={researchBusy||!agents.some(a=>a.id===selectedAgentId&&a.modelConfigured)}>{researchBusy?'Agent working…':'Run selected agent'}</button><small>{agents.some(a=>a.id===selectedAgentId&&a.modelConfigured)?'The request will be sent to the configured AI provider and saved in execution history.':'AI provider credentials are not configured yet. Add AURORA_AI_API_KEY on the server to enable execution.'}</small></form>{researchReport&&<article className="research-report"><div className="report-heading"><strong>{researchReport.agentName} · {researchReport.model || 'No model'}</strong><small>{researchReport.status} · {new Date(researchReport.startedAt).toLocaleString()}</small></div><pre>{researchReport.output || researchReport.error || 'No output returned.'}</pre></article>}<div className="section-title"><div><h3>Execution history</h3><p>Last 50 agent runs saved in AURORA</p></div></div><div className="audit-list">{agentRuns.map(run=><article className="audit-row" key={run.id}><div className="audit-marker"/><div><strong>{run.agentName} · {run.status}</strong><p>{run.input}</p><small>Run #{run.id} · {run.businessId ? businesses.find(b=>b.id===run.businessId)?.name || `Business #${run.businessId}` : 'Workspace-level'} · {new Date(run.startedAt).toLocaleString()}</small></div></article>)}{agentRuns.length===0&&<p className="empty-note">No agent runs yet.</p>}</div></section>}
+          {tab==='agents' && <section className="content-card module-card"><div className="module-toolbar"><div><h3>Specialist agents</h3><p>Agent roles and capabilities registered in AURORA</p></div><span className="building-label">7 SPECIALIST AGENTS</span></div><div className="agent-notice"><strong>AURORA request allowance · not provider billing</strong><p>{aiUsage ? (aiUsage.exempt ? `Owner/admin exemption active. Your new AI requests are not counted. The workspace has recorded ${aiUsage.used} of ${aiUsage.limit} requests this month (${aiUsage.remaining} remaining). Historical requests are not attributed by user, so this total may include admin activity from before the exemption was applied.` : `${aiUsage.used} of ${aiUsage.limit} member requests used this month · ${aiUsage.remaining} remaining.`) : 'Usage allowance unavailable.'} Each agent stage makes one provider call. A four-stage workflow makes four calls; member calls count against the allowance, while owner/admin calls are exempt. Provider charges still apply to every AI request. {aiUsage && (aiUsage.providerRequests !== undefined ? `Provider ledger this month: ${aiUsage.providerRequests} recorded calls · ${(aiUsage.totalTokens ?? 0).toLocaleString()} reported tokens · $${(aiUsage.reportedCostUsd ?? 0).toFixed(6)} reported cost. ${aiUsage.requestsWithoutReportedCost ?? 0} calls have no reported cost yet; do not interpret missing cost as free usage.` : 'Provider usage ledger awaits the backend database migration.')}</p>{aiUsage?.businessUsage && aiUsage.businessUsage.length > 0 && <div className="audit-list">{aiUsage.businessUsage.map(item=><div className="audit-row" key={item.businessId ?? 'workspace'}><div className="audit-marker"/><div><strong>{item.businessName || 'Workspace-level work'}</strong><p>{item.providerRequests} calls · {item.totalTokens.toLocaleString()} tokens · ${item.reportedCostUsd.toFixed(6)} reported cost</p><small>{item.requestsWithoutReportedCost} calls without confirmed cost</small></div></div>)}</div>}</div><div className="agent-grid">{agents.map(agent=><article className="agent-card" key={agent.id}><div className="agent-card-top"><span className="agent-avatar">✳</span><span className={`agent-state ${agent.status.toLowerCase()}`}>{agent.status.replaceAll('_',' ')}</span></div><h3>{agent.name}</h3><span className="agent-role">{agent.role}</span><p>{agent.description}</p><div className="agent-capabilities">{agent.capabilities.map(cap=><span key={cap}>{cap}</span>)}</div><small>{agent.modelConfigured?`Model credentials detected · ${agent.model}`:'No AI model credentials configured'}</small><button className="text-button" onClick={()=>{setSelectedAgentId(agent.id);setResearchReport(null)}}>Use this agent →</button></article>)}</div><div className="agent-notice"><strong>Multi-agent workflow · Chama opportunity validation</strong><p>Run Research → Strategy quality audit → Content → Operations in sequence. Strategy checks source freshness, evidence labels and student-specific proof before recommending action. This creates drafts and recommendations only; it does not publish, spend money or contact customers. Model usage may incur charges.</p><button className="primary-button" onClick={()=>void runChamaWorkflow()} disabled={workflowBusy||!agents.some(a=>a.modelConfigured)}>{workflowBusy?'Agents working in sequence…':'Run validation workflow'}</button>{workflowBusy&&<p>Each specialist is working on the previous agent’s output. This may take a few minutes.</p>}{workflowResult&&<div className="research-report"><div className="report-heading"><strong>{workflowResult.workflow}</strong><small>{workflowResult.status} · {workflowResult.runs.length}/4 stages completed</small></div>{workflowResult.runs.map(run=><article key={run.id}><strong>{run.agentName} · {run.status}</strong><pre>{run.output||run.error||'No output'}</pre></article>)}</div>}</div><form className="research-form" onSubmit={runResearch}><label>Business attribution<select value={selectedBusinessId} onChange={e=>setSelectedBusinessId(e.target.value)}><option value="">Platform / workspace-level work</option>{businesses.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select><small>Choose a business to associate this run with its activity and spending ceiling.</small></label><label>Selected agent<select value={selectedAgentId} onChange={e=>setSelectedAgentId(e.target.value)}>{agents.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>Work request<textarea value={researchQuestion} onChange={e=>setResearchQuestion(e.target.value)} maxLength={5000} rows={4} placeholder="Describe the work you want this agent to perform…" required/></label><button className="primary-button" disabled={researchBusy||!agents.some(a=>a.id===selectedAgentId&&a.modelConfigured)}>{researchBusy?'Agent working…':'Run selected agent'}</button><small>{agents.some(a=>a.id===selectedAgentId&&a.modelConfigured)?'The request will be sent to the configured AI provider and saved in execution history.':'AI provider credentials are not configured yet. Add AURORA_AI_API_KEY on the server to enable execution.'}</small></form>{researchReport&&<article className="research-report"><div className="report-heading"><strong>{researchReport.agentName} · {researchReport.model || 'No model'}</strong><small>{researchReport.status} · {new Date(researchReport.startedAt).toLocaleString()}</small></div><pre>{researchReport.output || researchReport.error || 'No output returned.'}</pre></article>}<div className="section-title"><div><h3>Execution history</h3><p>Last 50 agent runs saved in AURORA</p></div></div><div className="audit-list">{agentRuns.map(run=><article className="audit-row" key={run.id}><div className="audit-marker"/><div><strong>{run.agentName} · {run.status}</strong><p>{run.input}</p><small>Run #{run.id} · {run.businessId ? businesses.find(b=>b.id===run.businessId)?.name || `Business #${run.businessId}` : 'Workspace-level'} · {new Date(run.startedAt).toLocaleString()}</small></div></article>)}{agentRuns.length===0&&<p className="empty-note">No agent runs yet.</p>}</div></section>}
 
           <footer className="page-footer"><span>PROJECT AURORA <b>·</b> VERSION 0.5.0</span><span>{loading?'Connecting…':online?'Persistent local database · API connected':'API disconnected'}</span></footer>
         </section>

@@ -25,13 +25,19 @@ public class OwnerTokenFilter extends OncePerRequestFilter {
         this.expectedToken = token.getBytes(StandardCharsets.UTF_8);
     }
 
+    private static boolean isSignedPreviewRequest(HttpServletRequest request) {
+        return "GET".equalsIgnoreCase(request.getMethod())
+            && request.getRequestURI().matches("^/api/v1/projects/[1-9][0-9]*/workspace/preview/[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+/.+$");
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         return path.startsWith("/api/v1/auth/")
             || "/api/v1/system/status".equals(path)
             || "/actuator/health".equals(path)
-            || path.startsWith("/actuator/health/");
+            || path.startsWith("/actuator/health/")
+            || isSignedPreviewRequest(request);
     }
 
     @Override

@@ -6,12 +6,15 @@ AURORA is a multi-workspace AI business operating platform. It coordinates speci
 
 - Java 25 / Spring Boot API and React + TypeScript dashboard.
 - Persistent local H2 development database and PostgreSQL deployment profile.
-- PostgreSQL schema managed by Flyway migrations V1–V12; Hibernate validates the deployed schema.
+- PostgreSQL schema managed by Flyway migrations V1–V24; Hibernate validates the deployed schema.
 - Account registration, login, password changes, one-time password recovery links and hashed, expiring, revocable sessions.
 - OWNER, ADMIN, MEMBER and VIEWER workspace roles and one-time invitations.
 - Workspace-scoped tasks, approvals, businesses, audit events, shared memory, customer research and agent runs.
-- Specialist agents for research, strategy, content and operations, plus a sequential Chama validation workflow.
+- Seven specialist agents: research, strategy, content, operations, frontend developer, QA and security review. QA/security agents produce advisory reports and never modify source or publish.
 - Customer interview capture, evidence analysis and CSV export.
+- Durable venture projects and multi-stage workflows with saved outputs, dependency checks, worker leases, safe pause/resume checkpoints, bounded owner/admin retry, cancellation and conservative recovery that avoids replaying possibly billed AI requests.
+- Project source workspaces, editable frontend files, immutable SHA-256 version history, version-pinned reviews, owner/admin approval decisions, ZIP export and local preview builds.
+- Website generation through a restricted React/TypeScript developer agent, owner/admin code-generation gate, disposable network-isolated preview builds, source QA, security review and browser QA reports/screenshots.
 - Persistent per-workspace monthly member AI request allowance (default 100), provider token/cost ledger, per-business usage attribution and dashboard display; workspace owners and administrators are exempt from the application allowance, but provider charges still apply.
 - Optional atomic platform/per-business monetary budget reservations, unknown-cost holds, owner/admin reconciliation with evidence, and persistent in-app 80%/90%/100% business budget alerts with acknowledgement. Monetary limits remain disabled until a defensible maximum per-request reservation is configured.
 - Shared AI provider client with 5-second connect timeout, 45-second response timeout, and agent-specific output budgets (up to 4,200 tokens for research and 1,800 for other agents).
@@ -51,6 +54,19 @@ The postgres profile uses Flyway and Hibernate schema validation (ddl-auto=valid
 - V9 adds serialized monetary budget reservations and per-business budget policies.
 - V10 adds auditable manual reconciliation evidence for unknown provider costs.
 - V11 adds persistent, deduplicated monthly business budget alerts.
+- V12 adds platform-admin flags and authenticated-session activity timestamps.
+- V13 creates workspace-scoped venture projects.
+- V14 creates durable project workflows and ordered steps.
+- V15 creates project artifact metadata.
+- V16 creates project review decisions.
+- V17 corrects the review hash column to VARCHAR(64).
+- V18 stores immutable project artifact version contents and SHA-256 hashes.
+- V19 pins review requests to the exact artifact version.
+- V20 adds workspace-scoped marketing campaigns and owner/admin review/queue states.
+- V21 attributes provider usage and cost to workflow steps.
+- V22 adds workflow approval gates before website source generation.
+- V23 adds bounded, spend-safe owner/admin retry for failed workflow steps.
+- V24 adds dependency checks and worker leases for conservative multi-instance coordination.
 
 Fresh PostgreSQL databases are migrated automatically. Existing PostgreSQL databases previously created with Hibernate ddl-auto=update must not simply be pointed at Flyway: take a verified backup, compare the schema and adopt it through a reviewed migration procedure. Do not enable baseline-on-migrate as a shortcut.
 
@@ -59,7 +75,7 @@ The current H2 development database is not automatically copied to PostgreSQL. E
 ## Container deployment
 
 1. Install Docker Engine and the Docker Compose plugin.
-2. Run ./scripts/setup.sh to create .env with a random database password and restrictive permissions.
+2. Run ./scripts/setup.sh to create `.env` with unique 256-bit database, preview-runner, preview-signing and browser-QA secrets, detected Docker socket GID when available, and restrictive permissions (600).
 3. Temporarily set AURORA_BOOTSTRAP_ENABLED=true in .env for initial owner registration only.
 4. Run ./scripts/start.sh and open the dashboard URL it prints.
 5. Create the first platform-owner account, immediately set AURORA_BOOTSTRAP_ENABLED=false, then run docker compose up -d backend dashboard.
@@ -68,14 +84,7 @@ The current H2 development database is not automatically copied to PostgreSQL. E
 
 The dashboard host mapping remains loopback-only; PostgreSQL and the backend have no public ports. Nginx rate-limits login, open account registration and invitation registration. For public access, the optional Caddy profile exposes TCP 80/443 (and UDP 443) and terminates HTTPS before proxying to the internal dashboard. Never expose the Vite development server.
 
-**Deployment status:** The Neon PostgreSQL 18 development database has Flyway V1–V12 applied; the cloud-profile backend validated all 12 migrations, Hibernate schema validation passed, and the application started on local port 8081. This is a cloud-profile local runner, not a hosted production deployment. The cloud-backed local dashboard is available at `http://127.0.0.1:5174` (Vite proxies to the Neon-backed API on port 8081). The updated local H2 backend and Neon-backed backend both return HTTP 200 and report public signup enabled. No public tunnel is currently running. The previously used development tunnel is not a working public endpoint; no Vite development server is exposed. The full Compose build has not been run on this laptop because Docker/Podman are not installed; the optional Caddy profile is configuration-only until tested on a Docker host.
-
-## Verification
-
-- Backend: 62 tests passed across 19 suites, with zero failures, zero errors and zero skipped. Includes public signup workspace isolation, concurrent registration, invitation flows, prompt-data escaping, owner/admin quota exemption, monthly member allowance enforcement, password-reset token lifecycle and persistence, SMTP email construction, cross-workspace read/update/delete isolation, and shared AI execution-path enforcement for provider usage and budget controls.
-- Frontend: Oxlint and TypeScript/Vite production build are run for each release check.
-- PostgreSQL: Neon schema V1–V12 validation and cloud-profile application health are verified separately from H2 tests.
-- The GitHub Actions workflow now includes Docker Compose configuration validation, production image builds, Nginx syntax validation and Caddyfile validation; GitHub execution remains unverified. Docker/Podman are not installed locally, so the container build was not run on this laptop.
+**Local development status (2026-11-27):** Docker Compose runs PostgreSQL 17, the Spring Boot backend, React dashboard, isolated preview runner and isolated browser-QA service on the Arch development machine. Dashboard is bound to `127.0.0.1:8088`; database/backend/preview-runner/browser-QA ports are not published. The local PostgreSQL database has migrations through V24 applied. Local dashboard and system-status checks return HTTP 200. The existing Netlify frontend URL responds with HTTP 200; the Render API status request timed out during this check and must be re-tested after its service wakes. The preview-runner Docker socket access remains a production blocker. Public social publishing, production deployment and media generation are not connected.
 
 ## Gmail SMTP invitation delivery
 
@@ -127,14 +136,14 @@ See documentation/operations/production-runbook.md for operational procedures an
 
 - Configure a real domain and verify the optional Caddy HTTPS profile obtains a trusted certificate.
 - Configure a defensible maximum per-request reservation and a dedicated OpenRouter API key with an independent provider-side credit cap before enabling monetary budgets. Keep automatic top-up off unless explicitly approved.
-- Complete a V11 Neon development migration check and a fresh PostgreSQL Compose startup before a public release.
+- Verify the complete V1–V24 migration chain on a fresh PostgreSQL database and run a full clean Compose startup before a public release.
 - Review session lifetime, token storage and account recovery for the intended threat model.
 - Configure and verify Gmail SMTP App Password invitation and password-reset email delivery.
 - Complete an end-to-end live Research Agent run and verify every returned source URL, publication date, claim label and citation; web-search tool wiring alone is not proof of citation quality.
-- Add marketing video generation and social publishing integrations with explicit owner approval.
+- Add image/design/video generation and social publishing integrations with explicit owner approval.
 - Configure encrypted off-site backups, external secret management, monitoring and alerting.
 - Complete cross-workspace security review, multi-account browser testing and dependency/container scanning.
 - Complete privacy, data-retention and legal reviews before storing real customer data.
 - Run the GitHub Actions workflow and protect the main branch.
 
-AURORA is a private prototype, not a production-certified or publicly hosted service. Cloud hosting, provider accounts and social account authorizations require user-owned credentials and explicit setup.
+AURORA is a prototype and is not production-certified. The Netlify frontend is publicly reachable, but the Render API timed out in the latest external check; backend availability and cloud configuration must be verified before inviting users. Cloud hosting, AI-provider accounts, creative-generation services and social account authorizations require user-owned credentials and explicit setup.

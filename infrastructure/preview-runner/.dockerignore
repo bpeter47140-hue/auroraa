@@ -1,0 +1,4 @@
+preview-runner
+*.test
+*.out
+.git
