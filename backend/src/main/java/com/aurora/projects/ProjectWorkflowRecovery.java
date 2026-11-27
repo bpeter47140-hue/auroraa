@@ -28,21 +28,37 @@ public class ProjectWorkflowRecovery {
 
     @Scheduled(fixedDelay = 30000)
     public void periodicRecovery() {
+        recoverInterruptedRuns();
         recoverExpiredLeases();
         dispatchQueuedRuns();
     }
 
     private void recoverInterruptedRuns() {
+        Instant now = Instant.now();
         for (String status : List.of("PAUSE_REQUESTED", "CANCEL_REQUESTED")) {
             for (ProjectWorkflowRun run : runs.findAllByStatusOrderByCreatedAtAsc(status)) {
+                // A different application instance may still own this workflow.
+                // Never recover a pause/cancel request while its worker lease is live.
+                Instant leaseExpiry = run.getLeaseExpiresAt();
+                if (leaseExpiry != null && leaseExpiry.isAfter(now)) continue;
+
                 List<ProjectWorkflowStep> workflowSteps = steps.findAllByWorkflowRun_IdOrderByStepOrderAsc(run.getId());
                 ProjectWorkflowStep active = workflowSteps.stream().filter(step -> "RUNNING".equals(step.getStatus())).findFirst().orElse(null);
                 if (active != null) {
-                    active.fail("Backend restarted or lost this worker lease. Provider outcome may be unknown; never replay automatically.");
-                    run.fail("Workflow interrupted. The active stage was not replayed; reconcile provider usage before manual retry.");
+                    active.fail("Worker lease expired while the workflow was stopping. Provider outcome may be unknown; never replay automatically.");
+                    if ("CANCEL_REQUESTED".equals(status)) {
+                        workflowSteps.stream().filter(step -> "PENDING".equals(step.getStatus())).forEach(ProjectWorkflowStep::cancel);
+                        run.cancel();
+                    } else {
+                        run.fail("Workflow interrupted while pausing. The active stage was not replayed; reconcile provider usage before manual retry.");
+                    }
                 } else if ("PAUSE_REQUESTED".equals(status)) run.pause();
-                else if ("CANCEL_REQUESTED".equals(status)) { workflowSteps.stream().filter(step -> "PENDING".equals(step.getStatus())).forEach(ProjectWorkflowStep::cancel); run.cancel(); }
-                steps.saveAll(workflowSteps); runs.save(run);
+                else if ("CANCEL_REQUESTED".equals(status)) {
+                    workflowSteps.stream().filter(step -> "PENDING".equals(step.getStatus())).forEach(ProjectWorkflowStep::cancel);
+                    run.cancel();
+                }
+                steps.saveAll(workflowSteps);
+                runs.save(run);
             }
         }
     }

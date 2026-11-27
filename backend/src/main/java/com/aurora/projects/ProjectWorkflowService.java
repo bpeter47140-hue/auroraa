@@ -38,7 +38,7 @@ public class ProjectWorkflowService {
     }
 
     public List<String> availableTemplates() {
-        return List.of("website-planning", "website-build", "marketing-plan");
+        return List.of("website-planning", "website-build", "marketing-plan", "business-factory");
     }
 
     @Transactional
@@ -57,7 +57,7 @@ public class ProjectWorkflowService {
             ProjectWorkflowStep step = new ProjectWorkflowStep(run, order, stage.agent(), stage.title(), stage.instructions());
             if (order > 1) step.setDependencies(List.of(order - 1));
             order++;
-            if ("website-build".equals(template) && "developer-agent".equals(stage.agent())) step.requireApproval();
+            if (java.util.Set.of("website-build", "business-factory").contains(template) && "developer-agent".equals(stage.agent())) step.requireApproval();
             steps.save(step);
         }
         audit.record("PROJECT_WORKFLOW_CREATED", "PROJECT_WORKFLOW", run.getId().toString(),
@@ -66,6 +66,26 @@ public class ProjectWorkflowService {
     }
 
     private List<Stage> stagesFor(String template) {
+        if ("business-factory".equals(template)) return List.of(
+            new Stage("research-agent", "Market, customer & competitor research",
+                "Investigate the target problem, customer segments, current alternatives, competitors, market signals and relevant constraints using live sources. Cite direct URLs, publisher and dates. Separate verified evidence, third-party claims and assumptions. Do not invent interviews, surveys, demand, statistics or customer commitments. Finish with the most important unknowns and low-cost validation experiments."),
+            new Stage("strategy-agent", "Business model & opportunity assessment",
+                "Evaluate the opportunity using the research handoff. Define target customer, problem, value proposition, differentiation, business model, plausible revenue streams, cost drivers, pricing hypotheses, risks and measurable success criteria. Make assumptions explicit; do not present speculative financial projections as facts. Recommend BUILD, VALIDATE FURTHER, PIVOT or STOP and explain the evidence behind that recommendation. Include a lean validation plan before meaningful spending."),
+            new Stage("content-agent", "Brand identity & product experience brief",
+                "Create a practical brand and product brief: positioning, audience, naming directions, voice, visual direction, navigation, page-by-page copy, calls to action and trust signals. Flag claims that require proof. The output is a brief and draft copy, not a generated logo, image or video."),
+            new Stage("developer-agent", "Build the approved MVP website",
+                "Build a focused, usable MVP website for the proposed business using Aurora's restricted React/TypeScript scaffold. Follow the product and brand briefs. Prioritise the core customer journey, responsive layout, semantic accessible UI, honest copy and functional local interactions. Do not add dependencies, analytics, tracking, external requests, credential collection, payment processing or fake testimonials. The source will be built in an isolated preview container. It must not be deployed or published."),
+            new Stage("preview-builder", "Build isolated product preview",
+                "Build the generated frontend with Aurora's isolated, network-disabled preview builder. Return build evidence, logs and the short-lived private preview link. A successful build is not production deployment or launch approval."),
+            new Stage("qa-agent", "Product quality & security source review",
+                "Review the generated source against the research, product and brand briefs. Inspect user journeys, functional controls, navigation, forms, responsive styles, accessibility, error/empty states, content accuracy, privacy risks and obvious security issues. Give prioritised findings with severity, file and line evidence, user impact, remediation and verification steps. Distinguish verified evidence from assumptions. Do not edit source or claim to have run browser tests."),
+            new Stage("browser-qa", "Automated browser & responsive QA",
+                "Run Aurora's isolated Chromium QA runner against the successfully built preview. Report actual desktop/mobile page-load results, screenshots, console/runtime errors, failed requests, internal-link status, responsive overflow and accessibility/interaction inventory. Do not submit forms or click controls that could cause side effects. Clearly state runner limitations; this is not a penetration test or a complete accessibility audit."),
+            new Stage("content-agent", "Launch marketing & campaign handoff pack",
+                "Create a practical launch marketing pack based on the validated business and product context: audience segments, channel strategy, campaign concepts, a 2-week content calendar, channel-specific post copy, email draft, calls to action, short-form video scripts and creative briefs. Include suggested tracking parameters and measurable goals. Do not claim image/video files were rendered, do not fabricate endorsements or performance results, and do not publish or contact anyone. Mark all items as drafts for human review."),
+            new Stage("operations-agent", "Business operations & launch-readiness runbook",
+                "Prepare the operating plan for a small first launch: customer support process, fulfilment/service delivery checklist, privacy and data-handling questions, analytics and KPI definitions, campaign handoff steps, costs to verify, incident/rollback plan, customer feedback loop and a prioritised 30-day task plan. Review all prior outputs and QA findings. End with a clear launch-readiness verdict and a checklist of decisions requiring owner approval. Do not deploy, spend, publish, contact customers or make legal/financial commitments.")
+        );
         if ("website-planning".equals(template)) return List.of(
             new Stage("research-agent", "Market & user research",
                 "Research this project idea, customer needs, competitors and evidence. Use live search for current claims. Clearly cite sources, dates and uncertainties. Do not invent user interviews or market statistics."),

@@ -292,3 +292,21 @@ Finish explicit retries with spend-safe idempotency, workflow approval gates, de
 - Exporting does not publish or schedule content externally. The local queue remains a planning state until platform-specific OAuth, account ownership verification, permissions, media upload, delivery receipts and retry handling are configured.
 - Current deployment configuration uses the OpenRouter-compatible chat endpoint and openrouter/free; no dedicated image model is configured. No social OAuth app credentials are configured. AI image/video generation and automatic social posting therefore remain disabled rather than silently falling back to paid or unverified providers.
 - Verification: frontend production build and lint pass; backend regression suite 85 tests, zero failures/errors/skips; git diff --check passes.
+
+
+
+## Integrated Business Factory workflow (2026-11-28)
+- Added a first-class business-factory workflow template to the project factory selector.
+- The nine ordered stages cover market/customer/competitor research; business-model assessment and validation experiments; brand/product brief; owner-approved MVP source generation; isolated preview build; source-level QA/security review; Chromium desktop/mobile QA; marketing/campaign handoff drafts; and a business operations/launch-readiness runbook.
+- Every stage persists its handoff as a project artifact and uses the existing workspace-scoped workflow engine, usage ledger, budget guard, audit trail, dependency checks, pause/resume/cancel, conservative retry rules and worker leases.
+- Code generation remains explicitly blocked until an OWNER/ADMIN approves the developer stage. The workflow does not deploy production code, generate media files, publish posts, spend money or contact customers. The marketing stage produces editable draft content and a handoff pack; actual image/video rendering, social OAuth/publishing and automated analytics still require provider integrations and owner-authorized credentials.
+- Added integration coverage for the nine-stage order, dependencies and approval gate. This workflow is an end-to-end assisted production pipeline, not yet unattended commercial operation.
+
+
+
+## Lease-aware stop recovery hardening (2026-11-28)
+- Periodic recovery now checks PAUSE_REQUESTED and CANCEL_REQUESTED workflows as well as expired RUNNING leases.
+- A worker with a still-live lease is left alone, preventing another application instance from prematurely failing a workflow while its current AI stage is still completing.
+- Once a stop-request worker lease expires, an active external stage is never replayed. Expired cancellation requests now finish as CANCELLED (with the active stage marked as an unknown-outcome failure); expired pause requests fail conservatively so provider usage can be reconciled before retry.
+- Added unit tests for live-lease protection and expired cancellation recovery.
+- Docker builds now exclude local target output and run a clean Maven package in the builder stage to avoid stale host build artifacts.

@@ -199,7 +199,8 @@ class ProjectWorkspaceIntegrationTests {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0]", is("website-planning")))
             .andExpect(jsonPath("$", hasItem("website-build")))
-            .andExpect(jsonPath("$", hasItem("marketing-plan")));
+            .andExpect(jsonPath("$", hasItem("marketing-plan")))
+            .andExpect(jsonPath("$", hasItem("business-factory")));
 
         mvc.perform(patch("/api/v1/projects/{projectId}/status", projectId)
             .header("Authorization", "Bearer " + token)
@@ -253,6 +254,37 @@ class ProjectWorkspaceIntegrationTests {
             .andExpect(jsonPath("$.steps[5].title", is("Source-level website QA review")))
             .andExpect(jsonPath("$.steps[6].agentId", is("browser-qa")))
             .andExpect(jsonPath("$.steps[7].agentId", is("operations-agent")));
+    }
+
+    @Test
+    void businessFactoryTemplateCreatesCompletePipelineAndRequiresOwnerApprovalBeforeCodeGeneration() {
+        AuthDtos.AuthResponse owner = auth.register(new AuthDtos.RegisterRequest(
+            "business.factory.workflow@example.com", "a-secure-password-123", "Factory Owner", "Factory workspace"));
+        var workspace = tenantWorkspaces.findById(owner.workspaces().getFirst().id()).orElseThrow();
+        VentureProject project = new VentureProject("Local services marketplace",
+            "Validate and build a small marketplace for local service providers", "APPLICATION");
+        project.assignWorkspace(workspace);
+        project = ventureProjects.saveAndFlush(project);
+
+        WorkspaceContextHolder.set(workspace, WorkspaceRole.OWNER);
+        ProjectWorkflowRun run;
+        try {
+            run = workflowService.create(project.getId(), "business-factory");
+        } finally {
+            WorkspaceContextHolder.clear();
+        }
+
+        var stages = workflowSteps.findAllByWorkflowRun_IdOrderByStepOrderAsc(run.getId());
+        assertEquals(9, stages.size());
+        assertEquals(java.util.List.of(
+            "research-agent", "strategy-agent", "content-agent", "developer-agent",
+            "preview-builder", "qa-agent", "browser-qa", "content-agent", "operations-agent"),
+            stages.stream().map(ProjectWorkflowStep::getAgentId).toList());
+        assertTrue(stages.get(3).isApprovalRequired());
+        assertEquals("PENDING", stages.get(3).getApprovalStatus());
+        assertEquals(java.util.List.of(3), stages.get(3).getDependsOnStepOrders());
+        assertEquals(java.util.List.of(8), stages.get(8).getDependsOnStepOrders());
+        assertEquals("QUEUED", run.getStatus());
     }
 
     @Test
